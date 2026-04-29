@@ -8,6 +8,12 @@ import 'package:geocoding/geocoding.dart';
 import 'dart:io';
 import '../../../../core/theme/app_colors.dart';
 import '../../data/report_repository.dart';
+import '../../../../services/evidence_hash_service.dart';
+import '../../../../services/device_attestation_service.dart';
+import '../../../../services/voice_input_service.dart';
+import '../../../../services/on_device_ai_service.dart';
+import '../../../../offline/offline_report_store.dart';
+import '../../../../offline/sync_worker.dart';
 
 class CreateReportScreen extends ConsumerStatefulWidget {
   const CreateReportScreen({super.key});
@@ -31,8 +37,18 @@ class _CreateReportScreenState extends ConsumerState<CreateReportScreen> {
   
   bool _isUploading = false;
   File? _selectedImage;
+  String? _imageHash; // V2: SHA-256 hash
   final _descController = TextEditingController();
   final _titleController = TextEditingController();
+
+  // V3: Sesli ihbar
+  final VoiceInputService _voiceService = VoiceInputService();
+  bool _isListening = false;
+
+  // V3: On-device AI sonucu
+  String? _aiCategory;
+  double? _aiConfidence;
+  bool _isAnalyzingAi = false;
 
   double? _latitude;
   double? _longitude;
@@ -111,9 +127,68 @@ class _CreateReportScreenState extends ConsumerState<CreateReportScreen> {
     final picker = ImagePicker();
     final pickedFile = await picker.pickImage(source: ImageSource.camera); 
     if (pickedFile != null) {
+      final file = File(pickedFile.path);
       setState(() {
-        _selectedImage = File(pickedFile.path);
+        _selectedImage = file;
+        _imageHash = null; // Reset hash
       });
+
+      // V2 Modül 2: Fotoğraf çekildiği an SHA-256 hash hesapla
+      final hash = await EvidenceHashService.computeSha256(file);
+      setState(() {
+        _imageHash = hash;
+      });
+
+      // V3: On-device AI sınıflandırma
+      _runAiClassification(file);
+    }
+  }
+
+  /// V3: Fotoğrafı on-device AI ile sınıflandır
+  Future<void> _runAiClassification(File file) async {
+    setState(() => _isAnalyzingAi = true);
+    try {
+      final result = await OnDeviceAIService.classifyImage(file);
+      if (mounted) {
+        setState(() {
+          _aiCategory = result['category'];
+          _aiConfidence = result['confidence'];
+        });
+      }
+    } catch (e) {
+      debugPrint('[AI] Sınıflandırma hatası: $e');
+    } finally {
+      if (mounted) setState(() => _isAnalyzingAi = false);
+    }
+  }
+
+  /// V3: Sesli ihbar — mikrofon toggle
+  void _toggleVoiceInput() async {
+    if (_isListening) {
+      _voiceService.stopListening();
+      setState(() => _isListening = false);
+    } else {
+      final initialized = await _voiceService.initialize();
+      if (!initialized) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Mikrofon izni verilemedi veya cihaz desteklemiyor.')),
+          );
+        }
+        return;
+      }
+      setState(() => _isListening = true);
+      _voiceService.startListening(
+        onResult: (text) {
+          setState(() {
+            _descController.text = text;
+            _descController.selection = TextSelection.collapsed(offset: text.length);
+          });
+        },
+        onFinal: (text) {
+          setState(() => _isListening = false);
+        },
+      );
     }
   }
 
@@ -140,19 +215,68 @@ class _CreateReportScreenState extends ConsumerState<CreateReportScreen> {
     }
 
     setState(() => _isUploading = true);
-    
+
+    // V2 Modül 1: Cihaz doğrulama token'ı al
+    final attestationToken = await DeviceAttestationService.generateToken();
+
+    // V2 Modül 1: Cihaz-içi aciliyet ön skoru hesapla (Hybrid Check)
+    final clientUrgencyScore = DeviceAttestationService.computeClientUrgencyScore(
+      _descController.text,
+      _selectedCategory,
+    );
+
+    final payload = {
+      'title': _titleController.text,
+      'description': _descController.text,
+      'category': _selectedCategory,
+      'latitude': _latitude,
+      'longitude': _longitude,
+      'addressText': _addressText,
+    };
+
+    // V2 Modül 6: Çevrimdışı kontrolü
+    final isOnline = await SyncWorker.isOnline();
+
+    if (!isOnline) {
+      // OFFLINE: Lokale kaydet
+      try {
+        await OfflineReportStore.save(
+          payload: payload,
+          imageFile: _selectedImage!,
+          imageHash: _imageHash ?? '',
+        );
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('📴 İnternet yok — ihbar çevrimdışı kaydedildi. Bağlantı geldiğinde otomatik gönderilecek.'),
+              backgroundColor: Colors.orange.shade700,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+          context.pop();
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Çevrimdışı kayıt hatası: $e'), backgroundColor: AppColors.error),
+          );
+        }
+      } finally {
+        if (mounted) setState(() => _isUploading = false);
+      }
+      return;
+    }
+
+    // ONLINE: Normal akış
     try {
       final repository = ref.read(reportRepositoryProvider);
       await repository.createReport(
-        {
-          'title': _titleController.text,
-          'description': _descController.text,
-          'category': _selectedCategory,
-          'latitude': _latitude,
-          'longitude': _longitude,
-          'addressText': _addressText,
-        },
+        payload,
         _selectedImage!.path,
+        evidenceHash: _imageHash,
+        deviceAttestationToken: attestationToken,
+        clientUrgencyScore: clientUrgencyScore,
       );
       
       if (mounted) {
@@ -233,7 +357,7 @@ class _CreateReportScreenState extends ConsumerState<CreateReportScreen> {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.1),
+                      color: AppColors.primary.withValues(alpha: 0.1),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(Icons.camera_alt, color: AppColors.primary, size: 32),
@@ -246,6 +370,85 @@ class _CreateReportScreenState extends ConsumerState<CreateReportScreen> {
               ) : null,
             ),
           ),
+
+          // V2 Modül 2: Hash göstergesi
+          if (_imageHash != null) ...[
+            const Gap(8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.green.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.green.shade200),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.verified_user, color: Colors.green.shade700, size: 18),
+                  const Gap(8),
+                  Expanded(
+                    child: Text(
+                      'Dijital Mühür: ${_imageHash!.substring(0, 16)}...',
+                      style: TextStyle(fontSize: 11, color: Colors.green.shade800, fontFamily: 'monospace'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          // V3: On-device AI Sınıflandırma Sonucu
+          if (_isAnalyzingAi) ...[
+            const Gap(16),
+            Row(
+              children: [
+                const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                const Gap(8),
+                Text('Yapay Zeka Fotoğrafı İnceliyor...', style: TextStyle(color: Colors.grey.shade700, fontSize: 12)),
+              ],
+            )
+          ] else if (_aiCategory != null) ...[
+            const Gap(16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.smart_toy, color: AppColors.primary),
+                  const Gap(12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('AI Sınıflandırması: $_aiCategory', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                        Text('Güven Oranı: %${((_aiConfidence ?? 0) * 100).toStringAsFixed(1)}', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                      ],
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      // Önerilen kategoriyi seç
+                      final hasCategory = _categories.any((c) => c['value'] == _aiCategory);
+                      if (hasCategory) {
+                        setState(() {
+                          _selectedCategory = _aiCategory!;
+                          _currentStep = 1; // Detaylara geç
+                        });
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('AI önerisi uygulandı: $_aiCategory')),
+                        );
+                      }
+                    },
+                    child: const Text('Kullan'),
+                  )
+                ],
+              ),
+            ),
+          ],
+
           const Gap(32),
 
           Text('Konum Bilgisi (Canlı GPS)', style: Theme.of(context).textTheme.titleLarge),
@@ -289,7 +492,7 @@ class _CreateReportScreenState extends ConsumerState<CreateReportScreen> {
           Text('İhbar Detayları', style: Theme.of(context).textTheme.titleLarge),
           const Gap(16),
           DropdownButtonFormField<String>(
-            value: _selectedCategory,
+            initialValue: _selectedCategory,
             decoration: const InputDecoration(labelText: 'Kategori'),
             items: _categories.map((c) => DropdownMenuItem(value: c['value'], child: Text(c['label']!))).toList(),
             onChanged: (val) {
@@ -305,11 +508,33 @@ class _CreateReportScreenState extends ConsumerState<CreateReportScreen> {
           TextFormField(
             controller: _descController,
             maxLines: 5,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: 'Açıklama (Plaka ve Detaylar)',
               alignLabelWithHint: true,
+              suffixIcon: IconButton(
+                onPressed: _toggleVoiceInput,
+                icon: Icon(
+                  _isListening ? Icons.mic : Icons.mic_none,
+                  color: _isListening ? Colors.red : AppColors.primary,
+                ),
+                tooltip: _isListening ? 'Dinleniyor... Durdurmak için tıkla' : 'Sesli giriş',
+              ),
             ),
           ),
+          if (_isListening)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Row(
+                children: [
+                  const SizedBox(
+                    width: 16, height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.red),
+                  ),
+                  const SizedBox(width: 8),
+                  Text('Dinleniyor... Konuşun.', style: TextStyle(color: Colors.red.shade700, fontSize: 13)),
+                ],
+              ),
+            ),
         ],
       ),
     );

@@ -7,10 +7,17 @@ import com.reportt.complaintapp.domain.enums.MediaAnalysisStatus;
 import com.reportt.complaintapp.domain.enums.ReportCategory;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import org.springframework.stereotype.Service;
 
+/**
+ * Python media_guard.py betiğini çalıştırarak medya analizi + NLP aciliyet skoru üretir.
+ *
+ * <p>V2 ile eklenen {@code --description} parametresi sayesinde Python tarafında
+ * NLP tabanlı aciliyet skoru (1–10) hesaplanır.</p>
+ */
 @Service
 public class PythonMediaInspectionService implements MediaInspectionService {
 
@@ -23,18 +30,26 @@ public class PythonMediaInspectionService implements MediaInspectionService {
     }
 
     @Override
-    public MediaInspectionResult inspect(Path mediaFile, String contentType, ReportCategory category) {
+    public MediaInspectionResult inspect(Path mediaFile, String contentType, ReportCategory category, String description) {
         if (!properties.enabled()) {
             return MediaInspectionResult.failed("Otomatik medya analizi devre disi.");
         }
 
-        ProcessBuilder processBuilder = new ProcessBuilder(List.of(
+        List<String> command = new ArrayList<>(List.of(
                 properties.pythonCommand(),
                 properties.scriptPath(),
                 "--file", mediaFile.toAbsolutePath().toString(),
                 "--content-type", contentType == null ? "" : contentType,
                 "--category", category.name()
         ));
+
+        // V2: NLP için açıklama metni gönder
+        if (description != null && !description.isBlank()) {
+            command.add("--description");
+            command.add(description);
+        }
+
+        ProcessBuilder processBuilder = new ProcessBuilder(command);
         processBuilder.redirectErrorStream(true);
 
         try {
@@ -58,7 +73,10 @@ public class PythonMediaInspectionService implements MediaInspectionService {
                     root.hasNonNull("selfieRisk") ? root.get("selfieRisk").asDouble() : null,
                     root.hasNonNull("detectedPlate") ? root.get("detectedPlate").asText() : null,
                     root.path("reviewRequired").asBoolean(true),
-                    output
+                    output,
+                    // V2: urgencyScore ve nlpSummary
+                    root.hasNonNull("urgencyScore") ? root.get("urgencyScore").asInt() : null,
+                    root.hasNonNull("nlpSummary") ? root.get("nlpSummary").asText() : null
             );
         } catch (IOException exception) {
             return MediaInspectionResult.failed("Python analiz servisine erisilemedi.");

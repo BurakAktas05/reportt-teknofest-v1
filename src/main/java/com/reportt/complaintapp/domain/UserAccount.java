@@ -52,4 +52,20 @@ public class UserAccount extends BaseEntity {
     @JoinColumn(name = "station_id")
     @NotFound(action = NotFoundAction.IGNORE)
     private PoliceStation assignedStation;
+
+    // ── V2: Güven Puanı Sayaçları (Modül 5) ─────────────────
+
+    /** Doğrulanmış (VERIFIED) ihbar sayısı. */
+    @Column(nullable = false)
+    private int verifiedReportCount = 0;
+
+    /** Reddedilmiş ihbar sayısı. */
+    @Column(nullable = false)
+    private int rejectedReportCount = 0;
+
+    // ── V3: Firebase Cloud Messaging ─────────────────────────
+
+    /** FCM cihaz token'ı — push bildirim göndermek için kullanılır. */
+    @Column(name = "fcm_token", columnDefinition = "TEXT")
+    private String fcmToken;
 }

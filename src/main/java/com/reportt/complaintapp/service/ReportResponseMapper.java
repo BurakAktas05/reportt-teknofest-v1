@@ -45,10 +45,18 @@ public class ReportResponseMapper {
                                 evidence.getOutdoorConfidence(),
                                 evidence.getSelfieRisk(),
                                 evidence.getDetectedPlate(),
-                                evidence.isReviewRequired()
+                                evidence.isReviewRequired(),
+                                // V2
+                                evidence.getSha256Hash(),
+                                evidence.isHashVerified()
                         ))
                         .toList(),
-                feedback
+                feedback,
+                // V2 alanları
+                report.getUrgencyScore(),
+                report.isDeviceVerified(),
+                report.getAiTriageSummary(),
+                report.isBypassAnalysis()
         );
     }
 

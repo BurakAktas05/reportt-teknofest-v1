@@ -11,6 +11,10 @@ public record EvidenceResponse(
         Double outdoorConfidence,
         Double selfieRisk,
         String detectedPlate,
-        boolean reviewRequired
+        boolean reviewRequired,
+
+        // ── V2: Kriptografik Kanıt Bütünlüğü ───────────────
+        String sha256Hash,
+        boolean hashVerified
 ) {
 }

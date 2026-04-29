@@ -30,7 +30,17 @@ public enum ErrorCode {
     INVALID_PAYLOAD(HttpStatus.BAD_REQUEST, ApiErrorCategory.VALIDATION, "Istek govdesi okunamadi veya eksik gonderildi.", false),
     FILE_TOO_LARGE(HttpStatus.PAYLOAD_TOO_LARGE, ApiErrorCategory.VALIDATION, "Dosya boyutu izin verilen limiti asiyor.", false),
     RATE_LIMIT_EXCEEDED(HttpStatus.TOO_MANY_REQUESTS, ApiErrorCategory.RATE_LIMIT, "Cok fazla istek gonderildi. Lutfen daha sonra tekrar deneyin.", true),
-    UNEXPECTED_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, ApiErrorCategory.SYSTEM, "Beklenmeyen bir hata olustu. Destek icin requestId bilgisini kaydedin.", true);
+    UNEXPECTED_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, ApiErrorCategory.SYSTEM, "Beklenmeyen bir hata olustu. Destek icin requestId bilgisini kaydedin.", true),
+
+    // ── V2: Kriptografik Kanıt Bütünlüğü (Modül 2) ────────
+    EVIDENCE_HASH_MISMATCH(HttpStatus.BAD_REQUEST, ApiErrorCategory.BUSINESS, "Kanit dosyasinin hash degeri sunucu tarafinda dogrulanamadi. Dosya tahrifata ugrams olabilir.", false),
+    EVIDENCE_HASH_REQUIRED(HttpStatus.BAD_REQUEST, ApiErrorCategory.VALIDATION, "Her kanit dosyasi icin SHA-256 hash degeri gonderilmelidir.", false),
+
+    // ── V2: Cihaz Doğrulama (Modül 1) ──────────────────────
+    DEVICE_ATTESTATION_FAILED(HttpStatus.BAD_REQUEST, ApiErrorCategory.BUSINESS, "Cihaz guvenlik dogrulamasi basarisiz oldu.", false),
+
+    // ── V2: Analytics (Modül 3) ─────────────────────────────
+    INVALID_BOUNDING_BOX(HttpStatus.BAD_REQUEST, ApiErrorCategory.VALIDATION, "Gecersiz bounding box parametreleri gonderildi.", false);
 
     private final HttpStatus status;
     private final ApiErrorCategory category;

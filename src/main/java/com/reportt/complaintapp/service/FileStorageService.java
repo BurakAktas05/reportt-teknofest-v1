@@ -3,7 +3,13 @@ package com.reportt.complaintapp.service;
 import com.reportt.complaintapp.config.ObjectStorageProperties;
 import com.reportt.complaintapp.exception.ApiException;
 import com.reportt.complaintapp.exception.ErrorCode;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.core.sync.RequestBody;
@@ -14,7 +20,6 @@ import software.amazon.awssdk.services.s3.model.HeadBucketRequest;
 import software.amazon.awssdk.services.s3.model.NoSuchBucketException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
-import java.nio.file.Files;
 
 @Service
 public class FileStorageService {
@@ -25,7 +30,12 @@ public class FileStorageService {
     public FileStorageService(S3Client s3Client, ObjectStorageProperties objectStorageProperties) {
         this.s3Client = s3Client;
         this.objectStorageProperties = objectStorageProperties;
-        ensureBucketExists();
+        try {
+            ensureBucketExists();
+        } catch (Exception e) {
+            // MinIO/S3 kapalı olsa bile uygulama başlasın — dosya yükleme sırasında hata verilir
+            System.err.println("[FileStorageService] UYARI: Nesne depolama bağlantısı kurulamadı: " + e.getMessage());
+        }
     }
 
     public StoredFile store(
@@ -75,6 +85,50 @@ public class FileStorageService {
             throw new ApiException(ErrorCode.FILE_STORE_FAILED, "Bulut depolamadan dosya indirilemedi: " + exception.getMessage());
         }
     }
+
+    // ── V2: Kriptografik Kanıt Bütünlüğü (Modül 2) ────────────────
+
+    /**
+     * Verilen dosyanın SHA-256 hash'ini hesaplar.
+     * Adli kanıt bütünlüğü kontrolü için kullanılır.
+     *
+     * @param file hash'lenecek dosya
+     * @return 64 karakter hex-encoded SHA-256 hash
+     */
+    public String computeSha256(Path file) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            try (InputStream is = Files.newInputStream(file)) {
+                byte[] buffer = new byte[8192];
+                int bytesRead;
+                while ((bytesRead = is.read(buffer)) != -1) {
+                    digest.update(buffer, 0, bytesRead);
+                }
+            }
+            return HexFormat.of().formatHex(digest.digest());
+        } catch (NoSuchAlgorithmException | IOException exception) {
+            throw new ApiException(ErrorCode.FILE_STORE_FAILED, "Dosya hash hesaplanamadi: " + exception.getMessage());
+        }
+    }
+
+    /**
+     * İstemci tarafından gönderilen hash ile sunucu tarafında hesaplanan hash'i karşılaştırır.
+     * Eşleşmezse {@link ErrorCode#EVIDENCE_HASH_MISMATCH} hatası fırlatır.
+     *
+     * @param file doğrulanacak dosya
+     * @param clientHash istemcinin gönderdiği SHA-256 hash
+     * @return doğrulama başarılıysa sunucu tarafında hesaplanan hash
+     */
+    public String verifyIntegrity(Path file, String clientHash) {
+        String serverHash = computeSha256(file);
+        if (!serverHash.equalsIgnoreCase(clientHash)) {
+            throw new ApiException(ErrorCode.EVIDENCE_HASH_MISMATCH,
+                    "Istemci hash: " + clientHash + " | Sunucu hash: " + serverHash);
+        }
+        return serverHash;
+    }
+
+    // ────────────────────────────────────────────────────────────────
 
     private void ensureBucketExists() {
         try {

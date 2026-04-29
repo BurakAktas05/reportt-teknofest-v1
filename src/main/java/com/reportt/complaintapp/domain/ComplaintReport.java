@@ -61,4 +61,33 @@ public class ComplaintReport extends BaseEntity {
 
     @Column(nullable = false)
     private boolean liveCaptureConfirmed;
+
+    // ── V2: Smart Triage (Modül 1) ──────────────────────────
+
+    /** Hibrit AI tarafından hesaplanan aciliyet skoru (1-10). */
+    @Column(nullable = false)
+    private int urgencyScore = 0;
+
+    /** iOS DeviceCheck / Android Play Integrity token. */
+    @Column(columnDefinition = "TEXT")
+    private String deviceAttestationToken;
+
+    /** Cihaz doğrulama sonucu. */
+    @Column(nullable = false)
+    private boolean deviceVerified = false;
+
+    /** Yapay zeka triyaj özet metni. */
+    @Column(columnDefinition = "TEXT")
+    private String aiTriageSummary;
+
+    // ── V2: Trust Bypass (Modül 5) ──────────────────────────
+
+    /** Güvenilir vatandaş kuralı gereği AI analizi atlandı mı? */
+    @Column(nullable = false)
+    private boolean bypassAnalysis = false;
+
+    // ── V2: Offline (Modül 6) ───────────────────────────────
+
+    /** Çevrimdışı modda oluşturulan ihbarın cihaz üzerindeki zaman damgası. */
+    private LocalDateTime offlineCreatedAt;
 }

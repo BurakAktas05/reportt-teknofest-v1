@@ -15,8 +15,19 @@ import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * RabbitMQ üzerinden gelen medya analiz görevlerini işleyen asenkron tüketici.
+ *
+ * <h3>V2: Hybrid AI Çapraz Doğrulama (Modül 1)</h3>
+ * <p>Python media_guard.py'den gelen aciliyet skorunu istemci ön skoruyla karşılaştırır.
+ * Fark belirli bir eşiğin üstündeyse (±3) bayrak kaldırır ve derin inceleme talep eder.
+ * Bu hibrit yaklaşım hem edge manipülasyonunu hem de sunucu tarafı hatalarını tespit eder.</p>
+ */
 @Service
 public class MediaAnalysisConsumer {
+
+    /** İstemci-sunucu urgency skoru farkı bu eşiği geçerse bayrak kaldırılır. */
+    private static final int HYBRID_SCORE_DIVERGENCE_THRESHOLD = 3;
 
     private final ComplaintReportRepository complaintReportRepository;
     private final EvidenceMediaRepository evidenceMediaRepository;
@@ -48,12 +59,21 @@ public class MediaAnalysisConsumer {
         List<EvidenceMedia> evidences = evidenceMediaRepository.findByComplaintReportIdOrderByCreatedAtAsc(reportId);
         boolean isSpam = false;
         boolean needsReview = false;
+        int maxUrgencyScore = 0;
+        StringBuilder triageSummaryBuilder = new StringBuilder();
 
         for (EvidenceMedia evidence : evidences) {
             if ("S3".equals(evidence.getStorageProvider())) {
                 Path tempFile = fileStorageService.downloadToTempFile(evidence.getStoragePath());
                 try {
-                    MediaInspectionResult result = mediaInspectionService.inspect(tempFile, evidence.getContentType(), report.getCategory());
+                    // V2: description parametresi NLP analizi için gönderiliyor
+                    MediaInspectionResult result = mediaInspectionService.inspect(
+                            tempFile,
+                            evidence.getContentType(),
+                            report.getCategory(),
+                            report.getDescription()
+                    );
+
                     evidence.setAnalysisStatus(result.analysisStatus());
                     evidence.setAnalysisSummary(result.summary());
                     evidence.setAnalysisRawJson(result.rawJson());
@@ -73,11 +93,29 @@ public class MediaAnalysisConsumer {
                         needsReview = true;
                     }
 
+                    // V2: Aciliyet skoru toplama
+                    if (result.urgencyScore() != null && result.urgencyScore() > maxUrgencyScore) {
+                        maxUrgencyScore = result.urgencyScore();
+                    }
+                    if (result.nlpSummary() != null && !result.nlpSummary().isBlank()) {
+                        triageSummaryBuilder.append(result.nlpSummary()).append(" ");
+                    }
+
                 } finally {
                     try { Files.deleteIfExists(tempFile); } catch (Exception ignored) {}
                 }
             }
         }
+
+        // V2 Modül 1: İstemci ön skorunu kaydet (sunucu skoru yazılmadan ÖNCE)
+        int clientScore = report.getUrgencyScore();
+
+        // V2 Modül 1: Sunucu urgency skorunu kaydet
+        report.setUrgencyScore(maxUrgencyScore);
+        report.setAiTriageSummary(triageSummaryBuilder.toString().trim());
+
+        // V2 Modül 1: Hybrid Check — istemci ön skoru ile sunucu skorunu karşılaştır
+        boolean hybridDivergence = Math.abs(maxUrgencyScore - clientScore) > HYBRID_SCORE_DIVERGENCE_THRESHOLD;
 
         if (isSpam) {
             report.setStatus(ReportStatus.REJECTED_BY_SYSTEM);
@@ -87,7 +125,20 @@ public class MediaAnalysisConsumer {
             if (needsReview) {
                 createFeedback(report, "Otomatik inceleme bazi medya dosyalarinda dis mekan veya selfie supheleri gordu. Kayit manuel kontrole alinabilir.");
             }
+            if (hybridDivergence) {
+                createFeedback(report,
+                        "HIBRIT UYARI: Istemci on skoru (" + clientScore + ") ile sunucu AI skoru (" + maxUrgencyScore
+                                + ") arasinda belirgin sapma tespit edildi. Manuel inceleme onerilir.");
+                needsReview = true;
+            }
+            if (maxUrgencyScore >= 8) {
+                createFeedback(report,
+                        "YUKSEK ONCELIK: AI aciliyet skoru " + maxUrgencyScore + "/10. Bu ihbar oncelikli olarak degerlendirilmelidir.");
+            }
         }
+
+        // Sunucu urgency skorunu güncelle (clientScore override)
+        report.setUrgencyScore(maxUrgencyScore > 0 ? maxUrgencyScore : clientScore);
         complaintReportRepository.save(report);
     }
 

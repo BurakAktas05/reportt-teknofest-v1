@@ -5,6 +5,7 @@ import com.reportt.complaintapp.domain.enums.UserRole;
 import com.reportt.complaintapp.dto.auth.AuthResponse;
 import com.reportt.complaintapp.dto.auth.CreateOfficerRequest;
 import com.reportt.complaintapp.dto.auth.LoginRequest;
+import com.reportt.complaintapp.dto.auth.RefreshTokenRequest;
 import com.reportt.complaintapp.dto.auth.RegisterCitizenRequest;
 import com.reportt.complaintapp.exception.ApiException;
 import com.reportt.complaintapp.exception.ErrorCode;
@@ -84,6 +85,17 @@ public class AuthService {
         return toAuthResponse(user);
     }
 
+    public AuthResponse refreshToken(RefreshTokenRequest request) {
+        String refreshToken = request.refreshToken();
+        if (!jwtService.isRefreshToken(refreshToken) || jwtService.isTokenExpired(refreshToken)) {
+            throw new ApiException(ErrorCode.AUTH_INVALID, "Refresh token gecersiz veya suresi dolmus.");
+        }
+        String phone = jwtService.extractUsername(refreshToken);
+        UserAccount user = userAccountRepository.findByPhoneNumber(phone)
+                .orElseThrow(() -> new ApiException(ErrorCode.AUTH_INVALID));
+        return toAuthResponse(user);
+    }
+
     private void validateUniqueness(String phoneNumber, String email) {
         if (userAccountRepository.existsByPhoneNumber(phoneNumber)) {
             throw new ApiException(ErrorCode.PHONE_EXISTS);
@@ -100,7 +112,8 @@ public class AuthService {
                 user.getPhoneNumber(),
                 user.getRole().name(),
                 user.getReputationScore(),
-                jwtService.generateToken(user)
+                jwtService.generateToken(user),
+                jwtService.generateRefreshToken(user)
         );
     }
 }

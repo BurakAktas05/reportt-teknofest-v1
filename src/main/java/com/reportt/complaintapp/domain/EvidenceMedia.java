@@ -68,4 +68,14 @@ public class EvidenceMedia extends BaseEntity {
 
     @Column(nullable = false)
     private Long fileSize;
+
+    // ── V2: Kriptografik Kanıt Bütünlüğü (Modül 2) ────────
+
+    /** İstemci tarafında çekilen fotoğrafın SHA-256 hash değeri. */
+    @Column(name = "sha256_hash", length = 64)
+    private String sha256Hash;
+
+    /** Sunucu tarafında hesaplanan hash, istemci hash ile eşleşti mi? */
+    @Column(name = "hash_verified", nullable = false)
+    private boolean hashVerified = false;
 }

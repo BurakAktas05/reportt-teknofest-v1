@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:gap/gap.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/network/dio_client.dart';
+import '../../../../services/push_notification_service.dart';
 import '../../data/auth_repository.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -36,11 +38,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       );
       
       if (mounted) {
-        if (role == 'OFFICER') {
-          // context.go('/officer_home'); // İleride oluşturulacak
-          context.go('/home'); // Şimdilik home'a atalım
-        } else {
-          context.go('/home');
+        // V3: FCM token'ını backend'e kaydet
+        try {
+          final dio = ref.read(dioProvider);
+          await PushNotificationService.registerToken(dio);
+        } catch (_) {}
+
+        if (mounted) {
+          if (role == 'OFFICER') {
+            context.go('/home');
+          } else {
+            context.go('/home');
+          }
         }
       }
     } catch (e) {
@@ -86,7 +95,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               height: 300,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: Colors.white.withOpacity(0.1),
+                color: Colors.white.withValues(alpha: 0.1),
               ),
             ),
           ),
@@ -98,7 +107,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               height: 200,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: Colors.white.withOpacity(0.1),
+                color: Colors.white.withValues(alpha: 0.1),
               ),
             ),
           ),
@@ -114,10 +123,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   child: Container(
                     padding: const EdgeInsets.all(32),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.15),
+                      color: Colors.white.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(24),
                       border: Border.all(
-                        color: Colors.white.withOpacity(0.2),
+                        color: Colors.white.withValues(alpha: 0.2),
                         width: 1.5,
                       ),
                     ),
@@ -183,9 +192,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           keyboardType: TextInputType.phone,
                           decoration: InputDecoration(
                             hintText: 'Telefon (Örn: 05xxxxxxxxx)',
-                            hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
-                            prefixIcon: Icon(Icons.phone, color: Colors.white.withOpacity(0.7)),
-                            fillColor: Colors.white.withOpacity(0.1),
+                            hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
+                            prefixIcon: Icon(Icons.phone, color: Colors.white.withValues(alpha: 0.7)),
+                            fillColor: Colors.white.withValues(alpha: 0.1),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(16),
                               borderSide: BorderSide.none,
@@ -199,9 +208,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           obscureText: true,
                           decoration: InputDecoration(
                             hintText: 'Şifre',
-                            hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
-                            prefixIcon: Icon(Icons.lock_outline, color: Colors.white.withOpacity(0.7)),
-                            fillColor: Colors.white.withOpacity(0.1),
+                            hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
+                            prefixIcon: Icon(Icons.lock_outline, color: Colors.white.withValues(alpha: 0.7)),
+                            fillColor: Colors.white.withValues(alpha: 0.1),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(16),
                               borderSide: BorderSide.none,
@@ -304,10 +313,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       child: Container(
         height: 50,
         decoration: BoxDecoration(
-          color: selected ? Colors.white.withOpacity(0.3) : Colors.white.withOpacity(0.05),
+          color: selected ? Colors.white.withValues(alpha: 0.3) : Colors.white.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: selected ? Colors.white : Colors.white.withOpacity(0.1),
+            color: selected ? Colors.white : Colors.white.withValues(alpha: 0.1),
             width: 2,
           ),
         ),

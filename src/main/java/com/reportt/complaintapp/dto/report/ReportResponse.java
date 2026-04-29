@@ -20,6 +20,12 @@ public record ReportResponse(
         String assignedStationDistrict,
         LocalDateTime createdAt,
         List<EvidenceResponse> evidences,
-        List<FeedbackResponse> feedback
+        List<FeedbackResponse> feedback,
+
+        // ── V2 alanları ─────────────────────────────────────
+        int urgencyScore,
+        boolean deviceVerified,
+        String aiTriageSummary,
+        boolean bypassAnalysis
 ) {
 }

@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
-Medya guvenlik kapisi.
+Medya guvenlik kapisi + NLP Aciliyet Skoru Motoru.
 
 Amac:
 - Dis mekan olasiligini tahmin etmek
 - Selfie veya yuze asiri yakin cekim riskini kabaca tespit etmek
 - Uygunsa plakayi OCR ile okumayi denemek
+- V2: Dogal Dil Isleme ile aciklama metninden aciliyet skoru (1-10) uretmek
 
 Bu script bir karar motoru degil, ilk savunma katmanidir.
 Supheli dosyalari "manual review" akisina iter.
@@ -18,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -199,6 +201,145 @@ def maybe_detect_plate(file_path: Path, content_type: str, category: str) -> str
         return None
 
 
+# ═══════════════════════════════════════════════════════════════════
+# V2: NLP Aciliyet Skoru Motoru (Modül 1 — Smart Triage)
+# ═══════════════════════════════════════════════════════════════════
+
+# Anahtar kelime ağırlık sözlüğü — Türkçe doğal dil işleme
+URGENCY_KEYWORDS: dict[str, float] = {
+    # Yüksek aciliyet (8-10)
+    "ölüm": 10.0, "olum": 10.0,
+    "cinayet": 10.0, "silah": 9.5, "silahli": 9.5,
+    "bicak": 9.0, "bicakli": 9.0, "biçak": 9.0,
+    "vuruldu": 9.5, "vurulmuş": 9.5,
+    "rehin": 9.0, "kacirma": 9.0, "kaçırma": 9.0,
+    "patlama": 9.5, "bomba": 10.0,
+    "yaralama": 8.5, "yaralandi": 8.5,
+    "kan": 8.0, "kanli": 8.0, "kanlı": 8.0,
+    "tecavuz": 9.5, "tecavüz": 9.5,
+    "siddet": 8.5, "şiddet": 8.5,
+    "kavga": 7.5, "dovus": 7.5, "dövüş": 7.5,
+    "yangin": 9.0, "yangın": 9.0,
+    "deprem": 9.0, "sel": 8.5,
+    "cocuk": 7.0, "çocuk": 7.0,
+    "kadin": 6.5, "kadın": 6.5,
+    "tehdit": 7.5,
+    "acil": 8.0, "imdat": 9.0,
+    "ambulans": 8.5, "polis": 6.0, "itfaiye": 8.5,
+
+    # Orta aciliyet (5-7)
+    "hirsizlik": 6.5, "hırsızlık": 6.5,
+    "gasp": 7.0, "soygun": 7.0,
+    "taciz": 7.0, "takip": 6.0,
+    "kaza": 7.0, "trafik": 5.0,
+    "sarhos": 5.5, "sarhoş": 5.5, "alkol": 5.0,
+    "uyusturucu": 7.5, "uyuşturucu": 7.5,
+    "gurultu": 4.0, "gürültü": 4.0,
+    "vandalizm": 5.0, "hasar": 5.5,
+    "kirildi": 5.0, "kırıldı": 5.0,
+
+    # Düşük aciliyet (1-4)
+    "park": 3.0, "durakli": 3.0,
+    "cop": 2.5, "çöp": 2.5, "atik": 2.5, "atık": 2.5,
+    "kirlilik": 3.0, "kirliliği": 3.0,
+    "gurultu": 3.5,
+    "bozuk": 2.0, "cukur": 2.5, "çukur": 2.5,
+    "tabela": 2.0, "isik": 2.5, "ışık": 2.5,
+}
+
+# Kategori bazlı taban aciliyet skorları
+CATEGORY_BASE_SCORES: dict[str, float] = {
+    "VIOLENCE": 7.0,
+    "SECURITY": 6.0,
+    "TRAFFIC_OFFENSE": 5.0,
+    "PUBLIC_SAFETY": 5.5,
+    "VANDALISM": 4.0,
+    "PARKING_VIOLATION": 2.5,
+    "ENVIRONMENTAL": 3.0,
+    "INFRASTRUCTURE": 2.5,
+    "OTHER": 3.0,
+}
+
+
+def analyze_urgency_nlp(description: str, category: str) -> dict:
+    """
+    Türkçe NLP ile ihbar açıklamasından aciliyet skoru (1-10) üretir.
+
+    Algoritma:
+    1. Metin küçük harfe çevrilir ve tokenize edilir
+    2. Her token ağırlık sözlüğünden aranır
+    3. Bulunan en yüksek ağırlık + kategori taban skoru ağırlıklı ortalanır
+    4. Eşleşen anahtar kelime sayısı bonusu eklenir
+    5. Final skor 1-10 aralığına normalize edilir
+    """
+    if not description or not description.strip():
+        base = CATEGORY_BASE_SCORES.get(category, 3.0)
+        return {
+            "urgencyScore": max(1, min(10, round(base))),
+            "nlpSummary": "Aciklama metni bos. Kategori tabani kullanildi.",
+            "matchedKeywords": [],
+            "keywordCount": 0,
+        }
+
+    # Tokenize
+    text_lower = description.lower()
+    # Türkçe karakterleri koruyarak tokenize
+    tokens = re.findall(r'[a-zçğıöşü]+', text_lower)
+
+    matched_keywords: list[str] = []
+    max_keyword_weight = 0.0
+
+    for token in tokens:
+        if token in URGENCY_KEYWORDS:
+            weight = URGENCY_KEYWORDS[token]
+            matched_keywords.append(token)
+            if weight > max_keyword_weight:
+                max_keyword_weight = weight
+
+    category_base = CATEGORY_BASE_SCORES.get(category, 3.0)
+    keyword_count = len(matched_keywords)
+
+    if keyword_count == 0:
+        # Hiç anahtar kelime yoksa kategori tabanı kullan
+        final_score = category_base
+    else:
+        # Ağırlıklı ortalama: %60 en yüksek kelime, %25 kategori tabanı, %15 kelime sayısı bonusu
+        keyword_count_bonus = min(keyword_count * 0.5, 2.0)
+        final_score = (
+            max_keyword_weight * 0.60
+            + category_base * 0.25
+            + keyword_count_bonus * 0.15
+            + keyword_count_bonus
+        )
+
+    # Normalize [1, 10]
+    urgency_score = max(1, min(10, round(final_score)))
+
+    # Özet oluştur
+    if urgency_score >= 8:
+        level = "YUKSEK ONCELIK"
+    elif urgency_score >= 5:
+        level = "ORTA ONCELIK"
+    else:
+        level = "DUSUK ONCELIK"
+
+    unique_keywords = list(set(matched_keywords))
+    summary_parts = [f"Aciliyet: {urgency_score}/10 ({level})."]
+    if unique_keywords:
+        summary_parts.append(f"Tespit edilen anahtar kelimeler: {', '.join(unique_keywords[:5])}.")
+    summary_parts.append(f"Kategori tabani: {category} ({category_base}).")
+
+    return {
+        "urgencyScore": urgency_score,
+        "nlpSummary": " ".join(summary_parts),
+        "matchedKeywords": unique_keywords[:10],
+        "keywordCount": keyword_count,
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════
+
+
 def summarize(outdoor_confidence: float, selfie_risk: float, detected_plate: str | None, content_type: str) -> str:
     parts: list[str] = []
     if content_type.startswith("video/"):
@@ -223,7 +364,7 @@ def summarize(outdoor_confidence: float, selfie_risk: float, detected_plate: str
     return " ".join(parts)
 
 
-def analyze_media(file_path: Path, content_type: str, category: str) -> dict:
+def analyze_media(file_path: Path, content_type: str, category: str, description: str = "") -> dict:
     if not file_path.exists():
         return failed_result("Dosya bulunamadi.")
 
@@ -257,6 +398,9 @@ def analyze_media(file_path: Path, content_type: str, category: str) -> dict:
         review_required = outdoor_confidence < 0.5 or selfie_risk >= 0.6
         analysis_status = "REVIEW_REQUIRED" if review_required else "CLEAR"
 
+        # V2: NLP Aciliyet Analizi
+        nlp_result = analyze_urgency_nlp(description, category)
+
         return {
             "analysisStatus": analysis_status,
             "summary": summarize(outdoor_confidence, selfie_risk, detected_plate, content_type),
@@ -264,9 +408,13 @@ def analyze_media(file_path: Path, content_type: str, category: str) -> dict:
             "selfieRisk": round(selfie_risk, 4),
             "detectedPlate": detected_plate,
             "reviewRequired": review_required,
+            # V2: NLP sonuçları
+            "urgencyScore": nlp_result["urgencyScore"],
+            "nlpSummary": nlp_result["nlpSummary"],
             "signals": {
                 **outdoor,
                 **selfie,
+                "nlp": nlp_result,
             },
         }
     except Exception as exc:
@@ -281,18 +429,26 @@ def failed_result(message: str) -> dict:
         "selfieRisk": None,
         "detectedPlate": None,
         "reviewRequired": True,
+        "urgencyScore": None,
+        "nlpSummary": None,
         "signals": {},
     }
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Medya guvenlik analizi")
+    parser = argparse.ArgumentParser(description="Medya guvenlik analizi + NLP aciliyet skoru")
     parser.add_argument("--file", required=True, type=Path, help="Analiz edilecek medya dosyasi")
     parser.add_argument("--content-type", default="", help="Medya content type degeri")
     parser.add_argument("--category", default="OTHER", help="Rapor kategorisi")
+    parser.add_argument("--description", default="", help="V2: NLP analizi icin ihbar aciklama metni")
     args = parser.parse_args()
 
-    result = analyze_media(args.file, args.content_type or "", args.category or "OTHER")
+    result = analyze_media(
+        args.file,
+        args.content_type or "",
+        args.category or "OTHER",
+        args.description or "",
+    )
     json.dump(result, sys.stdout, ensure_ascii=True)
     sys.stdout.write("\n")
     return 0

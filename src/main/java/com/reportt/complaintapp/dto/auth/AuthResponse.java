@@ -6,6 +6,8 @@ public record AuthResponse(
         String phoneNumber,
         String role,
         Integer reputationScore,
-        String accessToken
+        String accessToken,
+        // V3: Refresh Token
+        String refreshToken
 ) {
 }

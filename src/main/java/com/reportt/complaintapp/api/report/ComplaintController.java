@@ -22,7 +22,10 @@ import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
+@Tag(name = "Reports", description = "İhbar CRUD ve durum güncelleme endpoint'leri")
 @RestController
 @RequestMapping("/api/reports")
 public class ComplaintController {
@@ -41,12 +44,14 @@ public class ComplaintController {
         this.currentUserService = currentUserService;
     }
 
+    @Operation(summary = "Canlı çekim oturumu başlat")
     @PostMapping("/capture-sessions")
     @ResponseStatus(HttpStatus.CREATED)
     public CaptureSessionResponse createCaptureSession() {
         return captureSessionService.createSession(currentUserService.getCurrentUser());
     }
 
+    @Operation(summary = "Yeni ihbar oluştur (multipart)")
     @PostMapping(consumes = {"multipart/form-data"})
     @ResponseStatus(HttpStatus.CREATED)
     public ReportResponse createReport(
@@ -56,16 +61,19 @@ public class ComplaintController {
         return complaintService.createReport(currentUserService.getCurrentUser(), payload, files);
     }
 
+    @Operation(summary = "Kendi ihbarlarımı listele")
     @GetMapping("/my")
     public List<ReportResponse> myReports() {
         return complaintService.listCitizenReports(currentUserService.getCurrentUser());
     }
 
+    @Operation(summary = "Karakola atanmış ihbarları listele (Memur)")
     @GetMapping("/assigned")
     public List<ReportResponse> assignedReports() {
         return complaintService.listAssignedReports(currentUserService.getCurrentUser());
     }
 
+    @Operation(summary = "İhbar detayı")
     @GetMapping("/{reportId}")
     public ReportResponse reportDetail(@PathVariable Long reportId) {
         return complaintService.getReport(reportId, currentUserService.getCurrentUser());

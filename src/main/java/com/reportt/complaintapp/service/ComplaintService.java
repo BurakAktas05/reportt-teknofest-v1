@@ -1,6 +1,8 @@
 package com.reportt.complaintapp.service;
 
+import com.reportt.complaintapp.config.RabbitMQConfig;
 import com.reportt.complaintapp.config.ScoringProperties;
+import com.reportt.complaintapp.config.TrustScoreProperties;
 import com.reportt.complaintapp.domain.ComplaintReport;
 import com.reportt.complaintapp.domain.EvidenceMedia;
 import com.reportt.complaintapp.domain.PoliceStation;
@@ -25,12 +27,23 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import org.locationtech.jts.geom.Point;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
-import com.reportt.complaintapp.config.RabbitMQConfig;
 
+/**
+ * İhbar yaşam döngüsünü yöneten ana servis.
+ *
+ * <h3>V2 Genişletmeleri</h3>
+ * <ul>
+ *   <li><b>Modül 1 — Smart Triage:</b> Cihaz doğrulama + istemci ön skor kaydı</li>
+ *   <li><b>Modül 2 — Dijital Mühür:</b> SHA-256 hash doğrulaması (istemci ↔ sunucu)</li>
+ *   <li><b>Modül 4 — PostGIS Routing:</b> Polygon-first karakol ataması (PoliceStationService içinde)</li>
+ *   <li><b>Modül 5 — Güven Puanı:</b> Güvenilir vatandaş bypass kuralı + sayaç güncellemesi</li>
+ *   <li><b>Modül 6 — Offline:</b> offlineCreatedAt zaman damgası</li>
+ * </ul>
+ */
 @Service
 public class ComplaintService {
 
@@ -43,9 +56,13 @@ public class ComplaintService {
     private final GeoPointService geoPointService;
     private final FileStorageService fileStorageService;
     private final ScoringProperties scoringProperties;
+    private final TrustScoreProperties trustScoreProperties;
     private final ReportAccessPolicy reportAccessPolicy;
     private final ReportResponseMapper reportResponseMapper;
     private final RabbitTemplate rabbitTemplate;
+    private final DeviceAttestationService deviceAttestationService;
+    private final SseService sseService;
+    private final NotificationService notificationService;
 
     public ComplaintService(
             ComplaintReportRepository complaintReportRepository,
@@ -57,9 +74,13 @@ public class ComplaintService {
             GeoPointService geoPointService,
             FileStorageService fileStorageService,
             ScoringProperties scoringProperties,
+            TrustScoreProperties trustScoreProperties,
             ReportAccessPolicy reportAccessPolicy,
             ReportResponseMapper reportResponseMapper,
-            RabbitTemplate rabbitTemplate
+            RabbitTemplate rabbitTemplate,
+            DeviceAttestationService deviceAttestationService,
+            SseService sseService,
+            NotificationService notificationService
     ) {
         this.complaintReportRepository = complaintReportRepository;
         this.evidenceMediaRepository = evidenceMediaRepository;
@@ -70,9 +91,13 @@ public class ComplaintService {
         this.geoPointService = geoPointService;
         this.fileStorageService = fileStorageService;
         this.scoringProperties = scoringProperties;
+        this.trustScoreProperties = trustScoreProperties;
         this.reportAccessPolicy = reportAccessPolicy;
         this.reportResponseMapper = reportResponseMapper;
         this.rabbitTemplate = rabbitTemplate;
+        this.deviceAttestationService = deviceAttestationService;
+        this.sseService = sseService;
+        this.notificationService = notificationService;
     }
 
     @Transactional
@@ -84,7 +109,16 @@ public class ComplaintService {
 
         captureSessionService.validateAndConsume(request.captureSessionToken(), citizen);
         Point reportPoint = geoPointService.createPoint(request.latitude(), request.longitude());
+
+        // V2 Modül 4: Polygon-first karakol ataması (PostGIS ST_Contains)
         PoliceStation station = policeStationService.findNearest(request.latitude(), request.longitude());
+
+        // V2 Modül 1: Zero-Trust cihaz doğrulama
+        boolean deviceVerified = deviceAttestationService.verify(request.deviceAttestationToken());
+
+        // V2 Modül 5: Güvenilir vatandaş bypass kuralı
+        boolean isTrustedCitizen = citizen.getReputationScore() >= trustScoreProperties.bypassThreshold()
+                && citizen.getVerifiedReportCount() >= trustScoreProperties.minimumVerifiedReports();
 
         ComplaintReport report = new ComplaintReport();
         report.setCitizen(citizen);
@@ -92,18 +126,51 @@ public class ComplaintService {
         report.setTitle(request.title());
         report.setDescription(request.description());
         report.setCategory(request.category());
-        report.setStatus(ReportStatus.PENDING_ANALYSIS);
         report.setIncidentAt(request.incidentAt());
         report.setReportedPoint(reportPoint);
         report.setAddressText(request.addressText());
         report.setLiveCaptureConfirmed(true);
 
+        // V2 alanları
+        report.setDeviceAttestationToken(request.deviceAttestationToken());
+        report.setDeviceVerified(deviceVerified);
+        report.setUrgencyScore(request.clientUrgencyScore() != null ? request.clientUrgencyScore() : 0);
+        report.setOfflineCreatedAt(request.offlineCreatedAt());
+
+        // V2 Modül 5: Trust bypass
+        if (isTrustedCitizen) {
+            report.setStatus(ReportStatus.SUBMITTED);
+            report.setBypassAnalysis(true);
+        } else {
+            report.setStatus(ReportStatus.PENDING_ANALYSIS);
+            report.setBypassAnalysis(false);
+        }
+
         ComplaintReport savedReport = complaintReportRepository.save(report);
 
+        // Dosya işleme + V2 Modül 2: Kriptografik hash doğrulama
+        List<String> clientHashes = request.evidenceHashes();
         List<EvidenceMedia> evidences = new ArrayList<>();
-        for (MultipartFile file : files) {
+
+        for (int i = 0; i < files.size(); i++) {
+            MultipartFile file = files.get(i);
             Path tempFile = createTempFile(file);
             try {
+                // V2 Modül 2: Sunucu tarafında SHA-256 hesapla
+                String serverHash = fileStorageService.computeSha256(tempFile);
+                boolean hashVerified = false;
+
+                // İstemci hash gönderildiyse bütünlük doğrula
+                if (clientHashes != null && i < clientHashes.size() && clientHashes.get(i) != null) {
+                    String clientHash = clientHashes.get(i);
+                    if (!serverHash.equalsIgnoreCase(clientHash)) {
+                        throw new ApiException(ErrorCode.EVIDENCE_HASH_MISMATCH,
+                                "Dosya " + (i + 1) + " hash uyumsuzlugu: istemci=" + clientHash + " sunucu=" + serverHash);
+                    }
+                    hashVerified = true;
+                }
+
+                // MinIO'ya yükle
                 FileStorageService.StoredFile stored = fileStorageService.store(
                         tempFile,
                         file.getOriginalFilename(),
@@ -124,14 +191,26 @@ public class ComplaintService {
                 evidenceMedia.setFileSize(stored.fileSize());
                 evidenceMedia.setAnalysisStatus(com.reportt.complaintapp.domain.enums.MediaAnalysisStatus.PENDING);
                 evidenceMedia.setReviewRequired(false);
+
+                // V2 Modül 2: Hash kaydet
+                evidenceMedia.setSha256Hash(serverHash);
+                evidenceMedia.setHashVerified(hashVerified);
+
                 evidences.add(evidenceMediaRepository.save(evidenceMedia));
             } finally {
                 deleteTempFile(tempFile);
             }
         }
 
-        createFeedback(savedReport, citizen, "Sikayetiniz sisteme alindi ve analiz icin siraya eklendi.", false);
-        rabbitTemplate.convertAndSend(RabbitMQConfig.MEDIA_ANALYSIS_QUEUE, savedReport.getId());
+        // Geri bildirim ve analiz kuyruğu
+        if (isTrustedCitizen) {
+            createFeedback(savedReport, citizen,
+                    "Guvenilir vatandas statunuz nedeniyle ihbariniz AI bekleme sirasi atlanarak dogrudan yonlendirildi.", false);
+        } else {
+            createFeedback(savedReport, citizen,
+                    "Sikayetiniz sisteme alindi ve analiz icin siraya eklendi.", false);
+            rabbitTemplate.convertAndSend(RabbitMQConfig.MEDIA_ANALYSIS_QUEUE, savedReport.getId());
+        }
 
         return reportResponseMapper.toReportResponse(savedReport, evidences, listVisibleFeedback(savedReport.getId(), citizen), citizen);
     }
@@ -214,6 +293,21 @@ public class ComplaintService {
         applyScoreIfNeeded(saved, previousStatus, request.status());
         createFeedback(saved, officer, "Sikayet durumu " + request.status().name() + " olarak guncellendi.", false);
 
+        // V3: SSE ile vatandaşa gerçek zamanlı bildirim
+        try {
+            sseService.sendToUser(saved.getCitizen().getId(), "report_update", java.util.Map.of(
+                    "reportId", saved.getId(),
+                    "newStatus", request.status().name(),
+                    "message", "Ihbariniz " + request.status().name() + " durumuna guncellendi."
+            ));
+        } catch (Exception ignored) { /* SSE bağlantısı yoksa hata vermesin */ }
+
+        // V3: FCM Push Notification ile vatandaşa bildirim
+        try {
+            notificationService.notifyReportStatusChange(
+                    saved.getCitizen(), saved.getId(), request.status().name());
+        } catch (Exception ignored) { /* FCM hatası uygulamayı durdurmasın */ }
+
         return reportResponseMapper.toReportResponse(
                 saved,
                 evidenceMediaRepository.findByComplaintReportIdOrderByCreatedAtAsc(reportId),
@@ -243,6 +337,14 @@ public class ComplaintService {
         return reportFeedbackRepository.save(feedback);
     }
 
+    /**
+     * V2 Modül 5: Puanlama ve sayaç güncelleme mantığı.
+     *
+     * <ul>
+     *   <li>VERIFIED: +puan, verifiedReportCount++</li>
+     *   <li>REJECTED / REJECTED_BY_SYSTEM: -puan, rejectedReportCount++</li>
+     * </ul>
+     */
     private void applyScoreIfNeeded(ComplaintReport report, ReportStatus previousStatus, ReportStatus newStatus) {
         if (previousStatus == newStatus) {
             return;
@@ -251,12 +353,14 @@ public class ComplaintService {
         UserAccount citizen = report.getCitizen();
         if (newStatus == ReportStatus.VERIFIED) {
             citizen.setReputationScore(citizen.getReputationScore() + scoringProperties.verifiedReportPoints());
+            citizen.setVerifiedReportCount(citizen.getVerifiedReportCount() + 1);
             userAccountRepository.save(citizen);
             return;
         }
 
-        if (newStatus == ReportStatus.REJECTED) {
+        if (newStatus == ReportStatus.REJECTED || newStatus == ReportStatus.REJECTED_BY_SYSTEM) {
             citizen.setReputationScore(Math.max(0, citizen.getReputationScore() - scoringProperties.rejectedReportPenalty()));
+            citizen.setRejectedReportCount(citizen.getRejectedReportCount() + 1);
             userAccountRepository.save(citizen);
         }
     }

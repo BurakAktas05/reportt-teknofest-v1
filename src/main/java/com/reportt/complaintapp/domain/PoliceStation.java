@@ -8,6 +8,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
+import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.Point;
 
 @Getter
@@ -37,4 +38,10 @@ public class PoliceStation extends BaseEntity {
 
     @Column(nullable = false, unique = true, length = 36)
     private String registrationCode;
+
+    // ── V2: Sorumluluk Bölgesi Poligonu (Modül 4) ──────────
+
+    /** Karakolun sorumluluk bölgesi sınırlarını tanımlayan PostGIS poligonu. */
+    @Column(columnDefinition = "geometry(Polygon,4326)")
+    private Geometry stationPolygon;
 }

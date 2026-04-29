@@ -26,6 +26,13 @@ spring:
       max-file-size: 30MB
       max-request-size: 80MB
 
+# V3: Swagger / OpenAPI
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs
+
 server:
   error:
     whitelabel:
@@ -40,6 +47,10 @@ app:
   scoring:
     verified-report-points: ${COMPLAINT_VERIFIED_REPORT_POINTS:10}
     rejected-report-penalty: ${COMPLAINT_REJECTED_REPORT_PENALTY:3}
+  # V2: Güvenilir Vatandaş Kural Motoru (Modül 5)
+  trust:
+    bypass-threshold: ${COMPLAINT_TRUST_BYPASS_THRESHOLD:50}
+    minimum-verified-reports: ${COMPLAINT_TRUST_MIN_VERIFIED:5}
   rate-limit:
     auth-capacity: ${COMPLAINT_RATE_LIMIT_AUTH_CAPACITY:20}
     auth-refill-tokens: ${COMPLAINT_RATE_LIMIT_AUTH_REFILL_TOKENS:20}

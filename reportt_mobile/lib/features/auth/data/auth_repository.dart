@@ -21,12 +21,16 @@ class AuthRepository {
         'password': password,
       });
       
-      final token = response.data['accessToken']; // Backendin döndüğü accessToken
+      final token = response.data['accessToken'];
+      final refreshToken = response.data['refreshToken'];
       final role = response.data['role'];
 
       if (token != null) {
         await _storage.write(key: 'jwt_token', value: token);
         await _storage.write(key: 'user_role', value: role ?? 'CITIZEN');
+        if (refreshToken != null) {
+          await _storage.write(key: 'refresh_token', value: refreshToken);
+        }
       } else {
         throw Exception('Sunucudan token alınamadı. Lütfen tekrar deneyin.');
       }
@@ -99,6 +103,7 @@ class AuthRepository {
 
   Future<void> logout() async {
     await _storage.delete(key: 'jwt_token');
+    await _storage.delete(key: 'refresh_token');
     await _storage.delete(key: 'user_role');
   }
   

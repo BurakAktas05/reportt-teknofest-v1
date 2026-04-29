@@ -5,5 +5,14 @@ import java.nio.file.Path;
 
 public interface MediaInspectionService {
 
-    MediaInspectionResult inspect(Path mediaFile, String contentType, ReportCategory category);
+    /**
+     * Medya dosyasını analiz eder.
+     *
+     * @param mediaFile analiz edilecek dosya
+     * @param contentType dosya tipi
+     * @param category ihbar kategorisi
+     * @param description V2: NLP aciliyet analizi için ihbar açıklama metni
+     * @return analiz sonucu
+     */
+    MediaInspectionResult inspect(Path mediaFile, String contentType, ReportCategory category, String description);
 }

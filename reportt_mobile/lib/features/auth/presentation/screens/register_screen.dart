@@ -103,9 +103,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   child: Container(
                     padding: const EdgeInsets.all(32),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.15),
+                      color: Colors.white.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(24),
-                      border: Border.all(color: Colors.white.withOpacity(0.2), width: 1.5),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1.5),
                     ),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
@@ -186,9 +186,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       keyboardType: type,
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
-        prefixIcon: Icon(icon, color: Colors.white.withOpacity(0.7)),
-        fillColor: Colors.white.withOpacity(0.1),
+        hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
+        prefixIcon: Icon(icon, color: Colors.white.withValues(alpha: 0.7)),
+        fillColor: Colors.white.withValues(alpha: 0.1),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
       ),
     );
@@ -200,10 +200,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       child: Container(
         height: 50,
         decoration: BoxDecoration(
-          color: selected ? Colors.white.withOpacity(0.3) : Colors.white.withOpacity(0.05),
+          color: selected ? Colors.white.withValues(alpha: 0.3) : Colors.white.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: selected ? Colors.white : Colors.white.withOpacity(0.1),
+            color: selected ? Colors.white : Colors.white.withValues(alpha: 0.1),
             width: 2,
           ),
         ),

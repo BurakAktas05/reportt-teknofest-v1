@@ -9,9 +9,11 @@ import org.springframework.data.repository.query.Param;
 
 public interface PoliceStationRepository extends JpaRepository<PoliceStation, Long> {
 
+    Optional<PoliceStation> findByRegistrationCode(String registrationCode);
+
     @Query(value = """
             SELECT *
-            FROM police_station ps
+            FROM complaint_app.police_station ps
             WHERE ps.active = true
             ORDER BY ST_DistanceSphere(
                 ps.station_point,

@@ -17,6 +17,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
+  bool _isOfficer = false;
 
   @override
   void dispose() {
@@ -44,8 +45,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       }
     } catch (e) {
       if (mounted) {
+        final msg = e.toString().replaceFirst('Exception: ', '');
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString()), backgroundColor: AppColors.error),
+          SnackBar(content: Text(msg), backgroundColor: AppColors.error),
         );
       }
     } finally {
@@ -139,7 +141,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
+                                 Text(
                                   'TÜRKİYE CUMHURİYETİ',
                                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                                         color: Colors.white,
@@ -148,7 +150,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                       ),
                                 ),
                                 Text(
-                                  'Vatandaş İhbar Sistemi',
+                                  _isOfficer ? 'Memur Giriş Paneli' : 'Vatandaş İhbar Sistemi',
                                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                         color: Colors.white70,
                                         letterSpacing: 1.0,
@@ -158,7 +160,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             ),
                           ],
                         ),
-                        const Gap(48),
+                        const Gap(32),
+                        
+                        // Role Selection Toggle
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildRoleChip('Vatandaş', !_isOfficer, () => setState(() => _isOfficer = false)),
+                            ),
+                            const Gap(12),
+                            Expanded(
+                              child: _buildRoleChip('Memur', _isOfficer, () => setState(() => _isOfficer = true)),
+                            ),
+                          ],
+                        ),
+                        const Gap(24),
                         
                         // Inputs
                         TextFormField(
@@ -278,6 +294,32 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildRoleChip(String label, bool selected, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 50,
+        decoration: BoxDecoration(
+          color: selected ? Colors.white.withOpacity(0.3) : Colors.white.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: selected ? Colors.white : Colors.white.withOpacity(0.1),
+            width: 2,
+          ),
+        ),
+        child: Center(
+          child: Text(
+            label,
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+        ),
       ),
     );
   }

@@ -6,5 +6,8 @@ public enum ReportCategory {
     VANDALISM,
     TRAFFIC_OFFENSE,
     PUBLIC_SAFETY,
+    ENVIRONMENTAL,
+    SECURITY,
+    INFRASTRUCTURE,
     OTHER
 }

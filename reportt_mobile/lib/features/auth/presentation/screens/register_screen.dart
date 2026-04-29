@@ -19,6 +19,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
+  bool _isOfficer = false;
+  final _stationCodeController = TextEditingController();
 
   @override
   void dispose() {
@@ -26,6 +28,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     _phoneController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
+    _stationCodeController.dispose();
     super.dispose();
   }
 
@@ -33,12 +36,23 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     setState(() => _isLoading = true);
     try {
       final authRepo = ref.read(authRepositoryProvider);
-      await authRepo.register(
-        _fullNameController.text,
-        _phoneController.text,
-        _emailController.text,
-        _passwordController.text,
-      );
+      
+      if (_isOfficer) {
+        await authRepo.registerOfficer(
+          fullName: _fullNameController.text,
+          phone: _phoneController.text,
+          email: _emailController.text,
+          password: _passwordController.text,
+          stationCode: _stationCodeController.text,
+        );
+      } else {
+        await authRepo.register(
+          _fullNameController.text,
+          _phoneController.text,
+          _emailController.text,
+          _passwordController.text,
+        );
+      }
       
       // Auto login after registration
       await authRepo.login(_phoneController.text, _passwordController.text);
@@ -51,8 +65,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       }
     } catch (e) {
       if (mounted) {
+        final msg = e.toString().replaceFirst('Exception: ', '');
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString()), backgroundColor: AppColors.error),
+          SnackBar(content: Text(msg), backgroundColor: AppColors.error),
         );
       }
     } finally {
@@ -108,6 +123,25 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         _buildField(_emailController, 'E-posta', Icons.email, type: TextInputType.emailAddress),
                         const Gap(16),
                         _buildField(_passwordController, 'Şifre', Icons.lock, obscure: true),
+                        const Gap(16),
+                        
+                        // Role Selection
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildRoleChip('Vatandaş', !_isOfficer, () => setState(() => _isOfficer = false)),
+                            ),
+                            const Gap(12),
+                            Expanded(
+                              child: _buildRoleChip('Memur', _isOfficer, () => setState(() => _isOfficer = true)),
+                            ),
+                          ],
+                        ),
+                        
+                        if (_isOfficer) ...[
+                          const Gap(16),
+                          _buildField(_stationCodeController, 'Karakol Kayıt Kodu', Icons.account_balance, type: TextInputType.text),
+                        ],
                         const Gap(32),
                         
                         SizedBox(
@@ -156,6 +190,32 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         prefixIcon: Icon(icon, color: Colors.white.withOpacity(0.7)),
         fillColor: Colors.white.withOpacity(0.1),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+      ),
+    );
+  }
+
+  Widget _buildRoleChip(String label, bool selected, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 50,
+        decoration: BoxDecoration(
+          color: selected ? Colors.white.withOpacity(0.3) : Colors.white.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: selected ? Colors.white : Colors.white.withOpacity(0.1),
+            width: 2,
+          ),
+        ),
+        child: Center(
+          child: Text(
+            label,
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+        ),
       ),
     );
   }

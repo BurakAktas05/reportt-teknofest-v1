@@ -19,10 +19,14 @@ class CreateReportScreen extends ConsumerStatefulWidget {
 class _CreateReportScreenState extends ConsumerState<CreateReportScreen> {
   String _selectedCategory = 'PARKING_VIOLATION';
   final List<Map<String, String>> _categories = [
-    {'value': 'PARKING_VIOLATION', 'label': 'Hatalı Park'},
-    {'value': 'ENVIRONMENTAL', 'label': 'Çevre Kirliliği'},
-    {'value': 'SECURITY', 'label': 'Güvenlik İhlali'},
-    {'value': 'INFRASTRUCTURE', 'label': 'Altyapı Sorunu'},
+    {'value': 'PARKING_VIOLATION', 'label': 'Hatalı Park / Duraklama'},
+    {'value': 'TRAFFIC_OFFENSE', 'label': 'Trafik Kural İhlali'},
+    {'value': 'VANDALISM', 'label': 'Kamu Malına Zarar / Vandalizm'},
+    {'value': 'ENVIRONMENTAL', 'label': 'Çevre Kirliliği / Atık'},
+    {'value': 'SECURITY', 'label': 'Güvenlik İhlali / Şüpheli'},
+    {'value': 'INFRASTRUCTURE', 'label': 'Altyapı / Yol Sorunu'},
+    {'value': 'VIOLENCE', 'label': 'Şiddet / Kavga'},
+    {'value': 'OTHER', 'label': 'Diğer'},
   ];
   
   bool _isUploading = false;
@@ -171,6 +175,8 @@ class _CreateReportScreenState extends ConsumerState<CreateReportScreen> {
     }
   }
 
+  int _currentStep = 0;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -178,142 +184,181 @@ class _CreateReportScreenState extends ConsumerState<CreateReportScreen> {
         backgroundColor: Colors.white,
         foregroundColor: AppColors.textPrimaryLight,
         elevation: 0,
-        title: const Text('Yeni İhbar Oluştur', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(_currentStep == 0 ? 'Adım 1: Kanıt ve Konum' : 'Adım 2: Detaylar', style: const TextStyle(fontWeight: FontWeight.bold)),
         leading: IconButton(
           icon: const Icon(Icons.close),
           onPressed: () => context.pop(),
         ),
       ),
-      body: SingleChildScrollView(
+      body: Padding(
         padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Camera / Image Box
-            GestureDetector(
-              onTap: _pickImage,
-              child: Container(
-                width: double.infinity,
-                height: 200,
-                decoration: BoxDecoration(
-                  color: AppColors.backgroundLight,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.grey.shade300, width: 2),
-                  image: _selectedImage != null 
-                    ? DecorationImage(image: FileImage(_selectedImage!), fit: BoxFit.cover)
-                    : null,
-                ),
-                child: _selectedImage == null ? Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withOpacity(0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(Icons.camera_alt, color: AppColors.primary, size: 32),
-                    ),
-                    const Gap(16),
-                    const Text(
-                      'Güvenli Canlı Çekim',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                    ),
-                    const Gap(4),
-                    Text(
-                      'Güvenlik için galeriden yükleme kapalıdır.',
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                    ),
-                    Text(
-                      'Dosyalarınız AI ile spam kontrolünden geçecektir.',
-                      style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
-                    ),
-                  ],
-                ) : null,
-              ),
-            ),
-            const Gap(32),
-
-            // Map Box (Location)
-            Text('Konum Bilgisi (Canlı GPS)', style: Theme.of(context).textTheme.titleLarge),
-            const Gap(12),
-            Container(
-              width: double.infinity,
-              height: 100,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade200,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Center(
-                child: _isGettingLocation
-                  ? const CircularProgressIndicator()
-                  : Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.location_on, color: AppColors.primary),
-                        const Gap(8),
-                        Expanded(
-                          child: Text(
-                            _addressText,
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-              ),
-            ),
-            const Gap(32),
-
-            // Form
-            Text('İhbar Detayları', style: Theme.of(context).textTheme.titleLarge),
-            const Gap(16),
-            DropdownButtonFormField<String>(
-              value: _selectedCategory,
-              decoration: const InputDecoration(labelText: 'Kategori'),
-              items: _categories.map((c) => DropdownMenuItem(value: c['value'], child: Text(c['label']!))).toList(),
-              onChanged: (val) {
-                if (val != null) setState(() => _selectedCategory = val);
-              },
-            ),
-            const Gap(16),
-            TextFormField(
-              controller: _titleController,
-              decoration: const InputDecoration(
-                labelText: 'Kısa Başlık',
-              ),
-            ),
-            const Gap(16),
-            TextFormField(
-              controller: _descController,
-              maxLines: 4,
-              decoration: const InputDecoration(
-                labelText: 'Açıklama',
-                hintText: 'Lütfen durumu detaylıca açıklayın...',
-                alignLabelWithHint: true,
-              ),
-            ),
-            const Gap(40),
-
-            // Submit
-            SizedBox(
-              width: double.infinity,
-              height: 56,
-              child: ElevatedButton(
-                onPressed: _isUploading ? null : _handleSubmit,
-                child: _isUploading
-                    ? const SizedBox(
-                        width: 24, height: 24,
-                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                      )
-                    : const Text('İhbarı Gönder', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              ),
-            ),
-            const Gap(40),
-          ],
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 300),
+          child: _currentStep == 0 ? _buildStep0() : _buildStep1(),
         ),
+      ),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: _currentStep == 0 ? _buildStep0Buttons() : _buildStep1Buttons(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStep0() {
+    return SingleChildScrollView(
+      key: const ValueKey(0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Olay Yeri Fotoğrafı', style: Theme.of(context).textTheme.titleLarge),
+          const Gap(12),
+          GestureDetector(
+            onTap: _pickImage,
+            child: Container(
+              width: double.infinity,
+              height: 250,
+              decoration: BoxDecoration(
+                color: AppColors.backgroundLight,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.grey.shade300, width: 2),
+                image: _selectedImage != null 
+                  ? DecorationImage(image: FileImage(_selectedImage!), fit: BoxFit.cover)
+                  : null,
+              ),
+              child: _selectedImage == null ? Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.camera_alt, color: AppColors.primary, size: 32),
+                  ),
+                  const Gap(16),
+                  const Text('Kamerayı Aç', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  const Gap(4),
+                  Text('Galeriden yükleme güvenlik için kapalıdır.', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                ],
+              ) : null,
+            ),
+          ),
+          const Gap(32),
+
+          Text('Konum Bilgisi (Canlı GPS)', style: Theme.of(context).textTheme.titleLarge),
+          const Gap(12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.grey.shade300),
+            ),
+            child: Center(
+              child: _isGettingLocation
+                ? const CircularProgressIndicator()
+                : Row(
+                    children: [
+                      const Icon(Icons.location_on, color: AppColors.primary, size: 32),
+                      const Gap(12),
+                      Expanded(
+                        child: Text(
+                          _addressText,
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
+                      ),
+                    ],
+                  ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStep1() {
+    return SingleChildScrollView(
+      key: const ValueKey(1),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('İhbar Detayları', style: Theme.of(context).textTheme.titleLarge),
+          const Gap(16),
+          DropdownButtonFormField<String>(
+            value: _selectedCategory,
+            decoration: const InputDecoration(labelText: 'Kategori'),
+            items: _categories.map((c) => DropdownMenuItem(value: c['value'], child: Text(c['label']!))).toList(),
+            onChanged: (val) {
+              if (val != null) setState(() => _selectedCategory = val);
+            },
+          ),
+          const Gap(24),
+          TextFormField(
+            controller: _titleController,
+            decoration: const InputDecoration(labelText: 'Kısa Başlık (Örn: Kaldırıma Park)'),
+          ),
+          const Gap(24),
+          TextFormField(
+            controller: _descController,
+            maxLines: 5,
+            decoration: const InputDecoration(
+              labelText: 'Açıklama (Plaka ve Detaylar)',
+              alignLabelWithHint: true,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStep0Buttons() {
+    return SizedBox(
+      height: 56,
+      child: ElevatedButton(
+        onPressed: () {
+          if (_selectedImage == null) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Lütfen kanıt fotoğrafı çekin.')));
+            return;
+          }
+          if (_latitude == null) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('GPS konumu bekleniyor...')));
+            return;
+          }
+          setState(() => _currentStep = 1);
+        },
+        child: const Text('Devam Et', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+      ),
+    );
+  }
+
+  Widget _buildStep1Buttons() {
+    return SizedBox(
+      height: 56,
+      child: Row(
+        children: [
+          Expanded(
+            flex: 1,
+            child: OutlinedButton(
+              onPressed: _isUploading ? null : () => setState(() => _currentStep = 0),
+              style: OutlinedButton.styleFrom(padding: EdgeInsets.zero),
+              child: const Text('Geri'),
+            ),
+          ),
+          const Gap(16),
+          Expanded(
+            flex: 2,
+            child: ElevatedButton(
+              onPressed: _isUploading ? null : _handleSubmit,
+              child: _isUploading
+                  ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                  : const Text('İhbarı Gönder', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            ),
+          ),
+        ],
       ),
     );
   }

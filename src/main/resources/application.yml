@@ -51,7 +51,7 @@ app:
     default-refill-tokens: ${COMPLAINT_RATE_LIMIT_DEFAULT_REFILL_TOKENS:60}
     default-refill-minutes: ${COMPLAINT_RATE_LIMIT_DEFAULT_REFILL_MINUTES:1}
   object-storage:
-    endpoint: ${COMPLAINT_OBJECT_STORAGE_ENDPOINT:http://localhost:9000}
+    endpoint: ${COMPLAINT_OBJECT_STORAGE_ENDPOINT:http://127.0.0.1:9000}
     region: ${COMPLAINT_OBJECT_STORAGE_REGION:us-east-1}
     bucket: ${COMPLAINT_OBJECT_STORAGE_BUCKET:complaint-evidence}
     access-key: ${COMPLAINT_OBJECT_STORAGE_ACCESS_KEY:minioadmin}
@@ -60,6 +60,6 @@ app:
     auto-create-bucket: ${COMPLAINT_OBJECT_STORAGE_AUTO_CREATE_BUCKET:true}
   media-analysis:
     enabled: ${COMPLAINT_MEDIA_ANALYSIS_ENABLED:true}
-    python-command: ${COMPLAINT_MEDIA_ANALYSIS_PYTHON:python}
+    python-command: ${COMPLAINT_MEDIA_ANALYSIS_PYTHON:py}
     script-path: ${COMPLAINT_MEDIA_ANALYSIS_SCRIPT_PATH:tools/media_guard.py}
     timeout-seconds: ${COMPLAINT_MEDIA_ANALYSIS_TIMEOUT_SECONDS:20}

@@ -4,7 +4,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 String _getBaseUrl() {
-  return 'https://kind-beds-divide.loca.lt/api';
+  return 'https://handbrake-vitalize-bully.ngrok-free.dev/api';
 }
 
 const secureStorage = FlutterSecureStorage();
@@ -16,7 +16,7 @@ final dioProvider = Provider<Dio>((ref) {
       connectTimeout: const Duration(seconds: 10),
       receiveTimeout: const Duration(seconds: 10),
       headers: {
-        'Bypass-Tunnel-Reminder': 'true',
+        'ngrok-skip-browser-warning': 'true',
       },
     ),
   );

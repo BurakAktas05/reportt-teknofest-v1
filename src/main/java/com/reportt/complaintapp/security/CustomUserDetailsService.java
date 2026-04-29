@@ -1,7 +1,5 @@
 package com.reportt.complaintapp.security;
 
-import com.reportt.complaintapp.exception.ApiException;
-import com.reportt.complaintapp.exception.ErrorCode;
 import com.reportt.complaintapp.repository.UserAccountRepository;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -21,6 +19,6 @@ public class CustomUserDetailsService implements UserDetailsService {
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
         return userAccountRepository.findByPhoneNumber(username)
                 .map(CustomUserPrincipal::new)
-                .orElseThrow(() -> new ApiException(ErrorCode.AUTH_INVALID, "Telefon numarasi veya sifre hatali."));
+                .orElseThrow(() -> new UsernameNotFoundException("Telefon numarasi veya sifre hatali."));
     }
 }

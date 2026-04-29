@@ -69,9 +69,9 @@ public class AuthService {
         user.setEmail(request.email());
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         user.setRole(role);
-        if (request.stationId() != null) {
-            user.setAssignedStation(policeStationRepository.findById(request.stationId())
-                    .orElseThrow(() -> new ApiException(ErrorCode.STATION_NOT_FOUND, "Secilen karakol bulunamadi.")));
+        if (request.stationCode() != null && !request.stationCode().isBlank()) {
+            user.setAssignedStation(policeStationRepository.findByRegistrationCode(request.stationCode())
+                    .orElseThrow(() -> new ApiException(ErrorCode.STATION_NOT_FOUND, "Gecersiz karakol kayit kodu (UUID).")));
         }
 
         return toAuthResponse(userAccountRepository.save(user));

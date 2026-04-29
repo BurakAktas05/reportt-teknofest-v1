@@ -61,6 +61,7 @@ public class FileStorageService {
     public Path downloadToTempFile(String objectKey) {
         try {
             Path tempFile = Files.createTempFile("complaint-media-dl-", ".bin");
+            Files.deleteIfExists(tempFile); // SDK will create it during download
             s3Client.getObject(
                     GetObjectRequest.builder()
                             .bucket(objectStorageProperties.bucket())
@@ -70,7 +71,8 @@ public class FileStorageService {
             );
             return tempFile;
         } catch (Exception exception) {
-            throw new ApiException(ErrorCode.FILE_STORE_FAILED, "Bulut depolamadan dosya indirilemedi.");
+            exception.printStackTrace();
+            throw new ApiException(ErrorCode.FILE_STORE_FAILED, "Bulut depolamadan dosya indirilemedi: " + exception.getMessage());
         }
     }
 

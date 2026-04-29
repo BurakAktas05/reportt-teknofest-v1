@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/dio_client.dart';
@@ -67,36 +68,48 @@ class ReportRepository {
       final sessionResp = await _dio.post('/reports/capture-sessions');
       final String sessionToken = sessionResp.data['sessionToken'];
 
-      payload['captureSessionToken'] = sessionToken;
+      // 2. Prepare the payload map
+      final Map<String, dynamic> reportData = {
+        'title': payload['title'],
+        'description': payload['description'],
+        'category': payload['category'],
+        'latitude': payload['latitude'],
+        'longitude': payload['longitude'],
+        'addressText': payload['addressText'],
+        'incidentAt': DateTime.now().toIso8601String().split('.').first, // Format: yyyy-MM-ddTHH:mm:ss
+        'captureSessionToken': sessionToken,
+      };
 
-      // 2. Create Multipart Form Data
+      // 3. Create Multipart Form Data
       final formData = FormData();
 
-      // Spring Boot expects "payload" as application/json and "files" as multipart
+      // Send payload as a JSON part
       formData.files.add(MapEntry(
         'payload',
         MultipartFile.fromString(
-          // Using a simple JSON string representation for the DTO
-          '{"title":"${payload['title']}", "description":"${payload['description']}", "category":"${payload['category']}", "latitude":${payload['latitude']}, "longitude":${payload['longitude']}, "addressText":"${payload['addressText']}", "incidentAt":"${DateTime.now().toIso8601String()}", "captureSessionToken":"$sessionToken"}',
-          filename: 'payload.json',
+          jsonEncode(reportData),
           contentType: DioMediaType('application', 'json'),
         ),
       ));
 
+      // Send file as 'files' part (Spring expects List<MultipartFile> files)
       formData.files.add(MapEntry(
         'files',
-        await MultipartFile.fromFile(filePath, filename: filePath.split('/').last),
+        await MultipartFile.fromFile(
+          filePath, 
+          filename: filePath.split('/').last,
+        ),
       ));
 
       await _dio.post(
         '/reports',
         data: formData,
-        options: Options(
-          headers: {'Content-Type': 'multipart/form-data'},
-        ),
       );
     } on DioException catch (e) {
-      throw Exception(e.response?.data['message'] ?? 'İhbar oluşturulamadı');
+      final errorMsg = e.response?.data is Map 
+          ? (e.response?.data['userMessage'] ?? e.response?.data['message']) 
+          : null;
+      throw Exception(errorMsg ?? 'İhbar oluşturulamadı. Lütfen bilgileri kontrol edin.');
     }
   }
 }

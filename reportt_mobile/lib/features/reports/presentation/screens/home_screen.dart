@@ -12,135 +12,138 @@ class HomeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final reportsAsyncValue = ref.watch(myReportsProvider);
+    final roleFuture = ref.watch(authRepositoryProvider).getSavedRole();
 
-    return Scaffold(
-      backgroundColor: AppColors.backgroundLight,
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        title: const Text('Reportt Dashboard', style: TextStyle(fontWeight: FontWeight.bold)),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.person),
-            onPressed: () {},
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () {
-              ref.read(authRepositoryProvider).logout();
-              context.go('/');
-            },
-          ),
-        ],
-      ),
-      body: CustomScrollView(
-        slivers: [
-          SliverToBoxAdapter(
-            child: Container(
-              padding: const EdgeInsets.all(24),
-              decoration: const BoxDecoration(
-                color: AppColors.primary,
-                borderRadius: BorderRadius.only(
-                  bottomLeft: Radius.circular(32),
-                  bottomRight: Radius.circular(32),
-                ),
+    return FutureBuilder<String?>(
+      future: roleFuture,
+      builder: (context, roleSnapshot) {
+        final isOfficer = roleSnapshot.data == 'OFFICER';
+
+        return Scaffold(
+          backgroundColor: AppColors.backgroundLight,
+          appBar: AppBar(
+            elevation: 0,
+            backgroundColor: AppColors.primary,
+            foregroundColor: Colors.white,
+            title: Text(isOfficer ? 'Memur Paneli' : 'Reportt Dashboard', style: const TextStyle(fontWeight: FontWeight.bold)),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.logout),
+                onPressed: () {
+                  ref.read(authRepositoryProvider).logout();
+                  context.go('/');
+                },
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Hoş Geldiniz,',
-                    style: TextStyle(color: Colors.white70, fontSize: 16),
-                  ),
-                  const Text(
-                    'Vatandaş', // Gerçek ad/soyad da eklenecek
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
+            ],
+          ),
+          body: CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(
+                child: Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: const BoxDecoration(
+                    color: AppColors.primary,
+                    borderRadius: BorderRadius.only(
+                      bottomLeft: Radius.circular(32),
+                      bottomRight: Radius.circular(32),
                     ),
                   ),
-                  const Gap(24),
-                  Row(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildStatCard('Toplam İhbar', '...', Icons.assignment), // Şimdilik mock
-                      const Gap(16),
-                      _buildStatCard('Puan', '100', Icons.star), // Şimdilik mock
+                      const Text(
+                        'Hoş Geldiniz,',
+                        style: TextStyle(color: Colors.white70, fontSize: 16),
+                      ),
+                      Text(
+                        isOfficer ? 'Emniyet Görevlisi' : 'Vatandaş',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const Gap(24),
+                      Row(
+                        children: [
+                          _buildStatCard(isOfficer ? 'Bekleyen' : 'Toplam İhbar', '...', Icons.assignment),
+                          const Gap(16),
+                          _buildStatCard(isOfficer ? 'Bölgem' : 'Puan', isOfficer ? 'Karakol' : '100', isOfficer ? Icons.location_city : Icons.star),
+                        ],
+                      ),
                     ],
                   ),
-                ],
+                ),
               ),
-            ),
-          ),
-          const SliverToBoxAdapter(child: Gap(24)),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Son İhbarlarım',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      // refresh
-                      ref.invalidate(myReportsProvider);
-                    },
-                    child: const Text('Yenile'),
-                  )
-                ],
-              ),
-            ),
-          ),
-          reportsAsyncValue.when(
-            data: (reports) {
-              if (reports.isEmpty) {
-                return const SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.all(40.0),
-                    child: Center(child: Text('Henüz bir ihbarınız yok.')),
-                  ),
-                );
-              }
-              return SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      return _buildReportCard(context, reports[index]);
-                    },
-                    childCount: reports.length,
+              const SliverToBoxAdapter(child: Gap(24)),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        isOfficer ? 'İşlem Bekleyenler' : 'Son İhbarlarım',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          ref.invalidate(myReportsProvider);
+                        },
+                        child: const Text('Yenile'),
+                      )
+                    ],
                   ),
                 ),
-              );
-            },
-            loading: () => const SliverToBoxAdapter(
-              child: Center(child: Padding(
-                padding: EdgeInsets.all(40.0),
-                child: CircularProgressIndicator(),
-              )),
-            ),
-            error: (err, stack) => SliverToBoxAdapter(
-              child: Center(child: Padding(
-                padding: const EdgeInsets.all(40.0),
-                child: Text('Hata: $err', style: const TextStyle(color: AppColors.error)),
-              )),
-            ),
+              ),
+              reportsAsyncValue.when(
+                data: (reports) {
+                  if (reports.isEmpty) {
+                    return const SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.all(40.0),
+                        child: Center(child: Text('Henüz görüntülenecek bir veri yok.')),
+                      ),
+                    );
+                  }
+                  return SliverPadding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    sliver: SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          return _buildReportCard(context, reports[index]);
+                        },
+                        childCount: reports.length,
+                      ),
+                    ),
+                  );
+                },
+                loading: () => const SliverToBoxAdapter(
+                  child: Center(child: Padding(
+                    padding: EdgeInsets.all(40.0),
+                    child: CircularProgressIndicator(),
+                  )),
+                ),
+                error: (err, stack) => SliverToBoxAdapter(
+                  child: Center(child: Padding(
+                    padding: const EdgeInsets.all(40.0),
+                    child: Text('Hata: $err', style: const TextStyle(color: AppColors.error)),
+                  )),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          context.push('/create_report');
-        },
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.add_a_photo),
-        label: const Text('Yeni İhbar', style: TextStyle(fontWeight: FontWeight.bold)),
-      ),
+          floatingActionButton: isOfficer ? null : FloatingActionButton.extended(
+            onPressed: () {
+              context.push('/create_report');
+            },
+            backgroundColor: AppColors.primary,
+            foregroundColor: Colors.white,
+            icon: const Icon(Icons.add_a_photo),
+            label: const Text('Yeni İhbar', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        );
+      },
     );
   }
 

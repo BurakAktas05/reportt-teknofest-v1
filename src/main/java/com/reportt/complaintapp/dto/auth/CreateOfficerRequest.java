@@ -12,6 +12,6 @@ public record CreateOfficerRequest(
         @Email @Size(max = 120) String email,
         @NotBlank @Size(min = 8, max = 64) String password,
         UserRole role,
-        Long stationId
+        @NotBlank String stationCode
 ) {
 }

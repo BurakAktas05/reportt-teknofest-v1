@@ -34,4 +34,7 @@ public class PoliceStation extends BaseEntity {
 
     @Column(nullable = false)
     private boolean active = true;
+
+    @Column(nullable = false, unique = true, length = 36)
+    private String registrationCode;
 }

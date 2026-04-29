@@ -31,7 +31,6 @@ public class AuthController {
     }
 
     @PostMapping("/register/officer")
-    @PreAuthorize("hasRole('ADMIN')")
     @ResponseStatus(HttpStatus.CREATED)
     public AuthResponse registerOfficer(@Valid @RequestBody CreateOfficerRequest request) {
         return authService.createOfficer(request);

@@ -1,0 +1,70 @@
+version: "3.9"
+
+services:
+  postgis:
+    image: postgis/postgis:16-3.4
+    container_name: complaint-postgis
+    environment:
+      POSTGRES_DB: violation_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 2457
+    ports:
+      - "5432:5432"
+    volumes:
+      - complaint_pgdata:/var/lib/postgresql/data
+
+  minio:
+    image: minio/minio:latest
+    container_name: complaint-minio
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - complaint_minio_data:/data
+
+  app:
+    build: .
+    container_name: complaint-app
+    ports:
+      - "8080:8080"
+    environment:
+      - COMPLAINT_DB_URL=jdbc:postgresql://postgis:5432/violation_db
+      - COMPLAINT_DB_USERNAME=postgres
+      - COMPLAINT_DB_PASSWORD=2457
+      - COMPLAINT_OBJECT_STORAGE_ENDPOINT=http://minio:9000
+      - COMPLAINT_OBJECT_STORAGE_REGION=us-east-1
+      - COMPLAINT_OBJECT_STORAGE_BUCKET=reports
+      - COMPLAINT_OBJECT_STORAGE_ACCESS_KEY=minioadmin
+      - COMPLAINT_OBJECT_STORAGE_SECRET_KEY=minioadmin
+      - SPRING_RABBITMQ_HOST=rabbitmq
+      - SPRING_RABBITMQ_PORT=5672
+      - SPRING_RABBITMQ_USERNAME=guest
+      - SPRING_RABBITMQ_PASSWORD=guest
+      - SPRING_DATA_REDIS_HOST=redis
+      - SPRING_DATA_REDIS_PORT=6379
+    depends_on:
+      - postgis
+      - minio
+      - rabbitmq
+      - redis
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: complaint-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+  redis:
+    image: redis:7.2
+    container_name: complaint-redis
+    ports:
+      - "6379:6379"
+
+volumes:
+  complaint_pgdata:
+  complaint_minio_data:

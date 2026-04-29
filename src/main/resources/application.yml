@@ -1,0 +1,65 @@
+spring:
+  application:
+    name: complaint-app
+  datasource:
+    url: ${COMPLAINT_DB_URL:jdbc:postgresql://localhost:5432/violation_db}
+    username: ${COMPLAINT_DB_USERNAME:postgres}
+    password: ${COMPLAINT_DB_PASSWORD:2457}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: true
+        default_schema: complaint_app
+  flyway:
+    enabled: true
+    url: ${COMPLAINT_DB_URL:jdbc:postgresql://localhost:5432/violation_db}
+    user: ${COMPLAINT_DB_USERNAME:postgres}
+    password: ${COMPLAINT_DB_PASSWORD:2457}
+    default-schema: complaint_app
+    schemas: complaint_app
+    create-schemas: true
+  servlet:
+    multipart:
+      max-file-size: 30MB
+      max-request-size: 80MB
+
+server:
+  error:
+    whitelabel:
+      enabled: false
+
+app:
+  security:
+    jwt-secret: ${COMPLAINT_JWT_SECRET:0123456789012345678901234567890101234567890123456789012345678901}
+    token-validity-minutes: ${COMPLAINT_JWT_TOKEN_VALIDITY_MINUTES:180}
+  capture:
+    session-validity-minutes: ${COMPLAINT_CAPTURE_SESSION_VALIDITY_MINUTES:5}
+  scoring:
+    verified-report-points: ${COMPLAINT_VERIFIED_REPORT_POINTS:10}
+    rejected-report-penalty: ${COMPLAINT_REJECTED_REPORT_PENALTY:3}
+  rate-limit:
+    auth-capacity: ${COMPLAINT_RATE_LIMIT_AUTH_CAPACITY:20}
+    auth-refill-tokens: ${COMPLAINT_RATE_LIMIT_AUTH_REFILL_TOKENS:20}
+    auth-refill-minutes: ${COMPLAINT_RATE_LIMIT_AUTH_REFILL_MINUTES:1}
+    report-capacity: ${COMPLAINT_RATE_LIMIT_REPORT_CAPACITY:30}
+    report-refill-tokens: ${COMPLAINT_RATE_LIMIT_REPORT_REFILL_TOKENS:30}
+    report-refill-minutes: ${COMPLAINT_RATE_LIMIT_REPORT_REFILL_MINUTES:1}
+    default-capacity: ${COMPLAINT_RATE_LIMIT_DEFAULT_CAPACITY:60}
+    default-refill-tokens: ${COMPLAINT_RATE_LIMIT_DEFAULT_REFILL_TOKENS:60}
+    default-refill-minutes: ${COMPLAINT_RATE_LIMIT_DEFAULT_REFILL_MINUTES:1}
+  object-storage:
+    endpoint: ${COMPLAINT_OBJECT_STORAGE_ENDPOINT:http://localhost:9000}
+    region: ${COMPLAINT_OBJECT_STORAGE_REGION:us-east-1}
+    bucket: ${COMPLAINT_OBJECT_STORAGE_BUCKET:complaint-evidence}
+    access-key: ${COMPLAINT_OBJECT_STORAGE_ACCESS_KEY:minioadmin}
+    secret-key: ${COMPLAINT_OBJECT_STORAGE_SECRET_KEY:minioadmin}
+    path-style-access-enabled: ${COMPLAINT_OBJECT_STORAGE_PATH_STYLE:true}
+    auto-create-bucket: ${COMPLAINT_OBJECT_STORAGE_AUTO_CREATE_BUCKET:true}
+  media-analysis:
+    enabled: ${COMPLAINT_MEDIA_ANALYSIS_ENABLED:true}
+    python-command: ${COMPLAINT_MEDIA_ANALYSIS_PYTHON:python}
+    script-path: ${COMPLAINT_MEDIA_ANALYSIS_SCRIPT_PATH:tools/media_guard.py}
+    timeout-seconds: ${COMPLAINT_MEDIA_ANALYSIS_TIMEOUT_SECONDS:20}

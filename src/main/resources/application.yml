@@ -25,6 +25,29 @@ spring:
     multipart:
       max-file-size: ${COMPLAINT_MAX_FILE_SIZE:100MB}
       max-request-size: ${COMPLAINT_MAX_REQUEST_SIZE:200MB}
+  # Redis
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      timeout: 5000
+  # RabbitMQ
+  rabbitmq:
+    host: ${SPRING_RABBITMQ_HOST:localhost}
+    port: ${SPRING_RABBITMQ_PORT:5672}
+    username: ${SPRING_RABBITMQ_USERNAME:guest}
+    password: ${SPRING_RABBITMQ_PASSWORD:guest}
+    listener:
+      simple:
+        missing-queues-fatal: false
+        retry:
+          enabled: true
+          max-attempts: 3
+  # Autoconfigure — Redis/RabbitMQ opsiyonel
+  autoconfigure:
+    exclude:
+      - ${EXCLUDE_REDIS:}
+      - ${EXCLUDE_RABBITMQ:}
 
 # V3: Swagger / OpenAPI
 springdoc:

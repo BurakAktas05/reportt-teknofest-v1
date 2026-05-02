@@ -43,11 +43,9 @@ spring:
         retry:
           enabled: true
           max-attempts: 3
-  # Autoconfigure — Redis/RabbitMQ opsiyonel
-  autoconfigure:
-    exclude:
-      - ${EXCLUDE_REDIS:}
-      - ${EXCLUDE_RABBITMQ:}
+  # Autoconfigure — gerekirse exclude edilebilir
+  # autoconfigure:
+  #   exclude: []
 
 # V3: Swagger / OpenAPI
 springdoc:

@@ -6,8 +6,6 @@
   },
   "deploy": {
     "startCommand": "java -Xmx512m -jar app.jar",
-    "healthcheckPath": "/v3/api-docs",
-    "healthcheckTimeout": 300,
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 5
   }

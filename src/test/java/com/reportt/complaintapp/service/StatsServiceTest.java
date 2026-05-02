@@ -141,8 +141,6 @@ class StatsServiceTest {
     private void stubCitizenCounts(long total, long verified, long rejected, long rejectedBySystem, long thisWeek) {
         when(reportRepository.countByCitizen(citizen)).thenReturn(total);
         when(reportRepository.countByCitizenAndStatus(citizen, ReportStatus.VERIFIED)).thenReturn(verified);
-        when(reportRepository.countByCitizenAndStatus(citizen, ReportStatus.REJECTED)).thenReturn(rejected);
-        when(reportRepository.countByCitizenAndStatus(citizen, ReportStatus.REJECTED_BY_SYSTEM)).thenReturn(rejectedBySystem);
         when(reportRepository.countByCitizenAndCreatedAtAfter(eq(citizen), any())).thenReturn(thisWeek);
     }
 }

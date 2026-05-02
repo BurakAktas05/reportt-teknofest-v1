@@ -23,8 +23,8 @@ spring:
     create-schemas: true
   servlet:
     multipart:
-      max-file-size: 30MB
-      max-request-size: 80MB
+      max-file-size: ${COMPLAINT_MAX_FILE_SIZE:100MB}
+      max-request-size: ${COMPLAINT_MAX_REQUEST_SIZE:200MB}
 
 # V3: Swagger / OpenAPI
 springdoc:
@@ -34,6 +34,7 @@ springdoc:
     path: /v3/api-docs
 
 server:
+  port: ${PORT:8080}
   error:
     whitelabel:
       enabled: false

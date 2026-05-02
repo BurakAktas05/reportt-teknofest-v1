@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'dart:io';
+import 'package:shimmer/shimmer.dart';
+import 'package:animate_do/animate_do.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../data/report_repository.dart';
 import '../../../../services/evidence_hash_service.dart';
@@ -36,8 +38,8 @@ class _CreateReportScreenState extends ConsumerState<CreateReportScreen> {
   ];
   
   bool _isUploading = false;
-  File? _selectedImage;
-  String? _imageHash; // V2: SHA-256 hash
+  final List<File> _selectedMedia = []; // Fotoğraf + Video listesi
+  final List<String?> _mediaHashes = []; // V2: SHA-256 hash listesi
   final _descController = TextEditingController();
   final _titleController = TextEditingController();
 
@@ -125,23 +127,46 @@ class _CreateReportScreenState extends ConsumerState<CreateReportScreen> {
 
   Future<void> _pickImage() async {
     final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(source: ImageSource.camera); 
+    final pickedFile = await picker.pickImage(source: ImageSource.camera);
     if (pickedFile != null) {
       final file = File(pickedFile.path);
       setState(() {
-        _selectedImage = file;
-        _imageHash = null; // Reset hash
+        _selectedMedia.add(file);
+        _mediaHashes.add(null);
       });
 
-      // V2 Modül 2: Fotoğraf çekildiği an SHA-256 hash hesapla
+      final idx = _selectedMedia.length - 1;
       final hash = await EvidenceHashService.computeSha256(file);
-      setState(() {
-        _imageHash = hash;
-      });
+      setState(() => _mediaHashes[idx] = hash);
 
-      // V3: On-device AI sınıflandırma
       _runAiClassification(file);
     }
+  }
+
+  Future<void> _pickVideo() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickVideo(
+      source: ImageSource.camera,
+      maxDuration: const Duration(seconds: 30),
+    );
+    if (pickedFile != null) {
+      final file = File(pickedFile.path);
+      setState(() {
+        _selectedMedia.add(file);
+        _mediaHashes.add(null);
+      });
+
+      final idx = _selectedMedia.length - 1;
+      final hash = await EvidenceHashService.computeSha256(file);
+      setState(() => _mediaHashes[idx] = hash);
+    }
+  }
+
+  void _removeMedia(int index) {
+    setState(() {
+      _selectedMedia.removeAt(index);
+      _mediaHashes.removeAt(index);
+    });
   }
 
   /// V3: Fotoğrafı on-device AI ile sınıflandır
@@ -193,13 +218,13 @@ class _CreateReportScreenState extends ConsumerState<CreateReportScreen> {
   }
 
   void _handleSubmit() async {
-    if (_selectedImage == null) {
+    if (_selectedMedia.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Lütfen kameradan bir kanıt fotoğrafı çekin.')),
+        const SnackBar(content: Text('Lütfen kameradan bir kanıt fotoğrafı veya video çekin.')),
       );
       return;
     }
-    
+
     if (_titleController.text.isEmpty || _descController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Lütfen başlık ve açıklama alanlarını doldurun.')),
@@ -242,8 +267,8 @@ class _CreateReportScreenState extends ConsumerState<CreateReportScreen> {
       try {
         await OfflineReportStore.save(
           payload: payload,
-          imageFile: _selectedImage!,
-          imageHash: _imageHash ?? '',
+          imageFile: _selectedMedia.first,
+          imageHash: _mediaHashes.isNotEmpty ? (_mediaHashes.first ?? '') : '',
         );
 
         if (mounted) {
@@ -273,8 +298,8 @@ class _CreateReportScreenState extends ConsumerState<CreateReportScreen> {
       final repository = ref.read(reportRepositoryProvider);
       await repository.createReport(
         payload,
-        _selectedImage!.path,
-        evidenceHash: _imageHash,
+        _selectedMedia.map((f) => f.path).toList(),
+        evidenceHashes: _mediaHashes.whereType<String>().toList(),
         deviceAttestationToken: attestationToken,
         clientUrgencyScore: clientUrgencyScore,
       );
@@ -331,81 +356,93 @@ class _CreateReportScreenState extends ConsumerState<CreateReportScreen> {
   }
 
   Widget _buildStep0() {
-    return SingleChildScrollView(
+    return FadeInUp(
       key: const ValueKey(0),
+      duration: const Duration(milliseconds: 400),
+      child: SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Olay Yeri Fotoğrafı', style: Theme.of(context).textTheme.titleLarge),
+          Text('Olay Yeri Kanıtları', style: Theme.of(context).textTheme.titleLarge),
           const Gap(12),
-          GestureDetector(
-            onTap: _pickImage,
-            child: Container(
-              width: double.infinity,
-              height: 250,
-              decoration: BoxDecoration(
-                color: AppColors.backgroundLight,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.grey.shade300, width: 2),
-                image: _selectedImage != null 
-                  ? DecorationImage(image: FileImage(_selectedImage!), fit: BoxFit.cover)
-                  : null,
-              ),
-              child: _selectedImage == null ? Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.camera_alt, color: AppColors.primary, size: 32),
-                  ),
-                  const Gap(16),
-                  const Text('Kamerayı Aç', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                  const Gap(4),
-                  Text('Galeriden yükleme güvenlik için kapalıdır.', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-                ],
-              ) : null,
-            ),
-          ),
-
-          // V2 Modül 2: Hash göstergesi
-          if (_imageHash != null) ...[
+          Row(children: [
+            Expanded(child: OutlinedButton.icon(onPressed: _pickImage, icon: const Icon(Icons.camera_alt), label: const Text('Fotoğraf'),
+              style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))))),
+            const Gap(12),
+            Expanded(child: OutlinedButton.icon(onPressed: _pickVideo, icon: const Icon(Icons.videocam), label: const Text('Video (30sn)'),
+              style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))))),
+          ]),
+          const Gap(12),
+          if (_selectedMedia.isEmpty)
+            Container(width: double.infinity, height: 150,
+              decoration: BoxDecoration(color: AppColors.backgroundLight, borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.grey.shade300, width: 2)),
+              child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Icon(Icons.add_a_photo, color: Colors.grey.shade400, size: 40), const Gap(8),
+                Text('Henüz kanıt eklenmedi', style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
+              ]))
+          else
+            SizedBox(height: 140, child: ListView.separated(
+              scrollDirection: Axis.horizontal, itemCount: _selectedMedia.length,
+              separatorBuilder: (_, __) => const Gap(10),
+              itemBuilder: (context, i) {
+                final file = _selectedMedia[i];
+                final ext = file.path.split('.').last.toLowerCase();
+                final isVideo = ['mp4', 'mov', 'avi', '3gp'].contains(ext);
+                return Stack(children: [
+                  ClipRRect(borderRadius: BorderRadius.circular(14),
+                    child: isVideo
+                      ? Container(width: 140, height: 140, color: Colors.black87, child: const Center(child: Icon(Icons.play_circle_fill, color: Colors.white, size: 48)))
+                      : Image.file(file, width: 140, height: 140, fit: BoxFit.cover)),
+                  Positioned(top: 4, right: 4, child: GestureDetector(onTap: () => _removeMedia(i),
+                    child: Container(padding: const EdgeInsets.all(4), decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
+                      child: const Icon(Icons.close, color: Colors.white, size: 16)))),
+                  if (isVideo) Positioned(bottom: 6, left: 6, child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(4)),
+                    child: const Text('VIDEO', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)))),
+                ]);
+              })),
+          if (_mediaHashes.any((h) => h != null)) ...[
             const Gap(8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.green.shade50,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.green.shade200),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.verified_user, color: Colors.green.shade700, size: 18),
-                  const Gap(8),
-                  Expanded(
-                    child: Text(
-                      'Dijital Mühür: ${_imageHash!.substring(0, 16)}...',
-                      style: TextStyle(fontSize: 11, color: Colors.green.shade800, fontFamily: 'monospace'),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+              decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.green.shade200)),
+              child: Row(children: [
+                Icon(Icons.verified_user, color: Colors.green.shade700, size: 18), const Gap(8),
+                Expanded(child: Text('Dijital Mühür: ${_mediaHashes.where((h) => h != null).length} dosya mühürlendi',
+                  style: TextStyle(fontSize: 11, color: Colors.green.shade800, fontFamily: 'monospace'))),
+              ])),
           ],
 
           // V3: On-device AI Sınıflandırma Sonucu
           if (_isAnalyzingAi) ...[
             const Gap(16),
-            Row(
-              children: [
-                const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
-                const Gap(8),
-                Text('Yapay Zeka Fotoğrafı İnceliyor...', style: TextStyle(color: Colors.grey.shade700, fontSize: 12)),
-              ],
-            )
+            Shimmer.fromColors(
+              baseColor: Colors.grey.shade300,
+              highlightColor: Colors.grey.shade100,
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.smart_toy, color: Colors.grey),
+                    const Gap(12),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(width: 150, height: 12, color: Colors.white),
+                        const Gap(8),
+                        Container(width: 100, height: 10, color: Colors.white),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ] else if (_aiCategory != null) ...[
             const Gap(16),
             Container(
@@ -480,15 +517,18 @@ class _CreateReportScreenState extends ConsumerState<CreateReportScreen> {
           ),
         ],
       ),
+    ),
     );
   }
 
   Widget _buildStep1() {
-    return SingleChildScrollView(
+    return FadeInUp(
       key: const ValueKey(1),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+      duration: const Duration(milliseconds: 400),
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
           Text('İhbar Detayları', style: Theme.of(context).textTheme.titleLarge),
           const Gap(16),
           DropdownButtonFormField<String>(
@@ -537,6 +577,7 @@ class _CreateReportScreenState extends ConsumerState<CreateReportScreen> {
             ),
         ],
       ),
+    ),
     );
   }
 
@@ -545,8 +586,8 @@ class _CreateReportScreenState extends ConsumerState<CreateReportScreen> {
       height: 56,
       child: ElevatedButton(
         onPressed: () {
-          if (_selectedImage == null) {
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Lütfen kanıt fotoğrafı çekin.')));
+          if (_selectedMedia.isEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Lütfen kanıt fotoğrafı veya video çekin.')));
             return;
           }
           if (_latitude == null) {
@@ -576,12 +617,28 @@ class _CreateReportScreenState extends ConsumerState<CreateReportScreen> {
           const Gap(16),
           Expanded(
             flex: 2,
-            child: ElevatedButton(
-              onPressed: _isUploading ? null : _handleSubmit,
-              child: _isUploading
-                  ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                  : const Text('İhbarı Gönder', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            ),
+            child: _isUploading
+                ? Pulse(
+                    infinite: true,
+                    child: ElevatedButton(
+                      onPressed: null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryLight,
+                      ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)),
+                          Gap(12),
+                          Text('Gönderiliyor...', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                        ],
+                      ),
+                    ),
+                  )
+                : ElevatedButton(
+                    onPressed: _handleSubmit,
+                    child: const Text('İhbarı Gönder', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  ),
           ),
         ],
       ),

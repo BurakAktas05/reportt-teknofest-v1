@@ -2,8 +2,22 @@ import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:flutter/foundation.dart';
+
+/// API base URL'i.
+///
+/// Öncelik sırası:
+/// 1. --dart-define=REPORTT_API_BASE_URL=...  (build-time)
+/// 2. Platform-aware fallback (emülatör vs web)
 String _getBaseUrl() {
-  return 'https://handbrake-vitalize-bully.ngrok-free.dev/api';
+  const envUrl = String.fromEnvironment('REPORTT_API_BASE_URL');
+  if (envUrl.isNotEmpty) return envUrl;
+
+  // Fallback: local development
+  if (kIsWeb) {
+    return 'http://localhost:8080/api';
+  }
+  return 'http://10.0.2.2:8080/api';
 }
 
 const secureStorage = FlutterSecureStorage();
@@ -12,8 +26,9 @@ final dioProvider = Provider<Dio>((ref) {
   final dio = Dio(
     BaseOptions(
       baseUrl: _getBaseUrl(),
-      connectTimeout: const Duration(seconds: 10),
-      receiveTimeout: const Duration(seconds: 10),
+      connectTimeout: const Duration(seconds: 15),
+      receiveTimeout: const Duration(seconds: 30),
+      sendTimeout: const Duration(seconds: 60),
       headers: {
         'ngrok-skip-browser-warning': 'true',
       },

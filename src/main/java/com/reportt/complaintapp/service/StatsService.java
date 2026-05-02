@@ -40,8 +40,6 @@ public class StatsService {
     private StatsResponse buildCitizenStats(UserAccount citizen) {
         long total = reportRepository.countByCitizen(citizen);
         long verified = reportRepository.countByCitizenAndStatus(citizen, ReportStatus.VERIFIED);
-        long rejected = reportRepository.countByCitizenAndStatus(citizen, ReportStatus.REJECTED)
-                + reportRepository.countByCitizenAndStatus(citizen, ReportStatus.REJECTED_BY_SYSTEM);
         long thisWeek = reportRepository.countByCitizenAndCreatedAtAfter(citizen, LocalDateTime.now().minusDays(7));
         double approvalRate = total > 0 ? (double) verified / total * 100 : 0.0;
         approvalRate = Math.round(approvalRate * 10) / 10.0;

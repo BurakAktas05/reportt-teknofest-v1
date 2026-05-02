@@ -20,7 +20,7 @@ CREATE TABLE police_station (
     station_name VARCHAR(150) NOT NULL,
     district VARCHAR(120) NOT NULL,
     station_point geometry(Point, 4326) NOT NULL,
-    contact_phone VARCHAR(20),
+    contact_phone VARCHAR(100),
     active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP

@@ -102,8 +102,14 @@ class PushNotificationService {
       final jwtToken = await storage.read(key: 'jwt_token');
       if (jwtToken == null) return;
 
+      // Build-time env variable veya platform-aware fallback
+      const envUrl = String.fromEnvironment('REPORTT_API_BASE_URL');
+      final String baseUrl = envUrl.isNotEmpty
+          ? envUrl
+          : (kIsWeb ? 'http://localhost:8080/api' : 'http://10.0.2.2:8080/api');
+
       final dio = Dio(BaseOptions(
-        baseUrl: 'https://handbrake-vitalize-bully.ngrok-free.dev/api',
+        baseUrl: baseUrl,
         headers: {
           'Authorization': 'Bearer $jwtToken',
           'ngrok-skip-browser-warning': 'true',

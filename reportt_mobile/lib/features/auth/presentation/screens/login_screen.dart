@@ -72,14 +72,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           // Background Gradient
           Positioned.fill(
             child: Container(
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [
-                    AppColors.primaryDark,
                     AppColors.primary,
-                    AppColors.primaryLight,
+                    AppColors.primaryDark,
+                    const Color(0xFF0D1526),
                   ],
                 ),
               ),
@@ -226,8 +226,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           child: ElevatedButton(
                             onPressed: _isLoading ? null : _handleLogin,
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.white,
-                              foregroundColor: AppColors.primary,
+                              backgroundColor: AppColors.accent,
+                              foregroundColor: AppColors.primaryDark,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(16),
                               ),
@@ -262,11 +262,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               );
                             },
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.primaryDark,
+                              backgroundColor: AppColors.turkishRed,
                               foregroundColor: Colors.white,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(16),
-                                side: const BorderSide(color: Colors.white30, width: 1),
                               ),
                             ),
                             child: Row(

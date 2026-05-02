@@ -1,7 +1,6 @@
 package com.reportt.complaintapp.dto.analytics;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * Vatandaş ve memur için istatistik cevap modeli.

@@ -5,9 +5,9 @@ services:
     image: postgis/postgis:16-3.4
     container_name: complaint-postgis
     environment:
-      POSTGRES_DB: violation_db
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: 2457
+      POSTGRES_DB: ${COMPLAINT_DB_NAME:-violation_db}
+      POSTGRES_USER: ${COMPLAINT_DB_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${COMPLAINT_DB_PASSWORD:-2457}
     ports:
       - "5432:5432"
     volumes:
@@ -17,8 +17,8 @@ services:
     image: minio/minio:latest
     container_name: complaint-minio
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_ROOT_USER: ${COMPLAINT_OBJECT_STORAGE_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${COMPLAINT_OBJECT_STORAGE_SECRET_KEY:-minioadmin}
     command: server /data --console-address ":9001"
     ports:
       - "9000:9000"
@@ -30,22 +30,26 @@ services:
     build: .
     container_name: complaint-app
     ports:
-      - "8080:8080"
+      - "${PORT:-8080}:8080"
     environment:
-      - COMPLAINT_DB_URL=jdbc:postgresql://postgis:5432/violation_db
-      - COMPLAINT_DB_USERNAME=postgres
-      - COMPLAINT_DB_PASSWORD=2457
+      - PORT=8080
+      - COMPLAINT_DB_URL=jdbc:postgresql://postgis:5432/${COMPLAINT_DB_NAME:-violation_db}
+      - COMPLAINT_DB_USERNAME=${COMPLAINT_DB_USERNAME:-postgres}
+      - COMPLAINT_DB_PASSWORD=${COMPLAINT_DB_PASSWORD:-2457}
+      - COMPLAINT_JWT_SECRET=${COMPLAINT_JWT_SECRET:-0123456789012345678901234567890101234567890123456789012345678901}
       - COMPLAINT_OBJECT_STORAGE_ENDPOINT=http://minio:9000
       - COMPLAINT_OBJECT_STORAGE_REGION=us-east-1
-      - COMPLAINT_OBJECT_STORAGE_BUCKET=reports
-      - COMPLAINT_OBJECT_STORAGE_ACCESS_KEY=minioadmin
-      - COMPLAINT_OBJECT_STORAGE_SECRET_KEY=minioadmin
+      - COMPLAINT_OBJECT_STORAGE_BUCKET=${COMPLAINT_OBJECT_STORAGE_BUCKET:-complaint-evidence}
+      - COMPLAINT_OBJECT_STORAGE_ACCESS_KEY=${COMPLAINT_OBJECT_STORAGE_ACCESS_KEY:-minioadmin}
+      - COMPLAINT_OBJECT_STORAGE_SECRET_KEY=${COMPLAINT_OBJECT_STORAGE_SECRET_KEY:-minioadmin}
       - SPRING_RABBITMQ_HOST=rabbitmq
       - SPRING_RABBITMQ_PORT=5672
-      - SPRING_RABBITMQ_USERNAME=guest
-      - SPRING_RABBITMQ_PASSWORD=guest
+      - SPRING_RABBITMQ_USERNAME=${SPRING_RABBITMQ_USERNAME:-guest}
+      - SPRING_RABBITMQ_PASSWORD=${SPRING_RABBITMQ_PASSWORD:-guest}
       - SPRING_DATA_REDIS_HOST=redis
       - SPRING_DATA_REDIS_PORT=6379
+      - FIREBASE_CREDENTIALS_JSON=${FIREBASE_CREDENTIALS_JSON:-}
+      - COMPLAINT_MEDIA_ANALYSIS_PYTHON=python3
     depends_on:
       - postgis
       - minio

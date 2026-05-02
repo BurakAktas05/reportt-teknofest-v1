@@ -90,6 +90,7 @@ class EvidenceItem {
   final double? selfieRisk;
   final String? sha256Hash;
   final bool hashVerified;
+  final String? detectedPlate;
 
   EvidenceItem({
     required this.id,
@@ -102,6 +103,7 @@ class EvidenceItem {
     this.selfieRisk,
     this.sha256Hash,
     this.hashVerified = false,
+    this.detectedPlate,
   });
 
   factory EvidenceItem.fromJson(Map<String, dynamic> json) {
@@ -116,6 +118,7 @@ class EvidenceItem {
       selfieRisk: (json['selfieRisk'] as num?)?.toDouble(),
       sha256Hash: json['sha256Hash'],
       hashVerified: json['hashVerified'] ?? false,
+      detectedPlate: json['detectedPlate'],
     );
   }
 }
@@ -277,8 +280,8 @@ class ReportRepository {
 
   Future<void> createReport(
     Map<String, dynamic> payload,
-    String filePath, {
-    String? evidenceHash,
+    List<String> filePaths, {
+    List<String>? evidenceHashes,
     String? deviceAttestationToken,
     int? clientUrgencyScore,
     String? offlineCreatedAt,
@@ -298,7 +301,7 @@ class ReportRepository {
         'captureSessionToken': sessionToken,
       };
 
-      if (evidenceHash != null) reportData['evidenceHashes'] = [evidenceHash];
+      if (evidenceHashes != null && evidenceHashes.isNotEmpty) reportData['evidenceHashes'] = evidenceHashes;
       if (deviceAttestationToken != null) reportData['deviceAttestationToken'] = deviceAttestationToken;
       if (clientUrgencyScore != null) reportData['clientUrgencyScore'] = clientUrgencyScore;
       if (offlineCreatedAt != null) reportData['offlineCreatedAt'] = offlineCreatedAt;
@@ -308,10 +311,14 @@ class ReportRepository {
         'payload',
         MultipartFile.fromString(jsonEncode(reportData), contentType: DioMediaType('application', 'json')),
       ));
-      formData.files.add(MapEntry(
-        'files',
-        await MultipartFile.fromFile(filePath, filename: filePath.split('/').last),
-      ));
+
+      // Birden fazla dosya (fotoğraf + video) desteği
+      for (final filePath in filePaths) {
+        formData.files.add(MapEntry(
+          'files',
+          await MultipartFile.fromFile(filePath, filename: filePath.split('/').last),
+        ));
+      }
 
       await _dio.post('/reports', data: formData);
     } on DioException catch (e) {

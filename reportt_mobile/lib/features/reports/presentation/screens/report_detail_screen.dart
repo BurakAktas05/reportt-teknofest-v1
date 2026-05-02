@@ -116,13 +116,30 @@ class ReportDetailScreen extends ConsumerWidget {
                       ],
                     ),
                     if (report.assignedStationName != null) ...[
-                      const Gap(4),
-                      Row(
-                        children: [
-                          const Icon(Icons.local_police, color: AppColors.accent, size: 18),
-                          const Gap(6),
-                          Text(report.assignedStationName!, style: Theme.of(context).textTheme.bodyMedium),
-                        ],
+                      const Gap(16),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.accent.withValues(alpha: 0.05),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.accent.withValues(alpha: 0.2)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.local_police, color: AppColors.accent, size: 24),
+                            const Gap(12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text('Sorumlu Karakol', style: TextStyle(fontSize: 12, color: AppColors.accent, fontWeight: FontWeight.bold)),
+                                  const Gap(2),
+                                  Text(report.assignedStationName!, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
 

@@ -40,6 +40,10 @@ dependencies:
   # V3: Firebase Push Notification
   firebase_core: ^3.13.0
   firebase_messaging: ^15.2.4
+  shimmer: ^3.0.0
+  animate_do: ^3.3.4
+  # V4: Video evidence support
+  video_player: ^2.9.2
   flutter_localizations:
     sdk: flutter
 

@@ -3,8 +3,23 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:geolocator/geolocator.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../data/report_repository.dart';
+
+final currentLocationProvider = FutureProvider.autoDispose<Position?>((ref) async {
+  bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+  if (!serviceEnabled) return null;
+  LocationPermission permission = await Geolocator.checkPermission();
+  if (permission == LocationPermission.denied) {
+    permission = await Geolocator.requestPermission();
+    if (permission == LocationPermission.denied) return null;
+  }
+  if (permission == LocationPermission.deniedForever) return null;
+  return await Geolocator.getCurrentPosition(
+    locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+  );
+});
 
 /// Canlı İhbar Haritası (V3).
 /// Tüm ihbarları pin olarak gösterir, kategoriye göre renklendirir.
@@ -14,6 +29,7 @@ class MapScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final reportsAsync = ref.watch(myReportsProvider);
+    final locationAsync = ref.watch(currentLocationProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -25,9 +41,15 @@ class MapScreen extends ConsumerWidget {
       body: reportsAsync.when(
         data: (reports) {
           final markers = _buildMarkers(context, reports);
-          final center = reports.isNotEmpty && reports.first.latitude != null
+          final fallbackCenter = reports.isNotEmpty && reports.first.latitude != null
               ? LatLng(reports.first.latitude!, reports.first.longitude!)
               : const LatLng(39.9334, 32.8597); // Ankara default
+          
+          final center = locationAsync.when(
+            data: (pos) => pos != null ? LatLng(pos.latitude, pos.longitude) : fallbackCenter,
+            loading: () => fallbackCenter,
+            error: (err, stack) => fallbackCenter,
+          );
 
           return FlutterMap(
             options: MapOptions(

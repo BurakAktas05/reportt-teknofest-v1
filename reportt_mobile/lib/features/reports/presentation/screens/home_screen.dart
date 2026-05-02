@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../data/report_repository.dart';
 import '../../../auth/data/auth_repository.dart';
+import 'package:animate_do/animate_do.dart';
 
 /// Dashboard sayfası — yalnızca ihbar listesi ve istatistik gösterir.
 /// Bottom navigation MainShell tarafından yönetilir.
@@ -66,26 +67,29 @@ class HomeScreen extends ConsumerWidget {
                     ),
                     const Gap(20),
                     statsAsync.when(
-                      data: (stats) => Row(
-                        children: [
-                          _buildStatCard(
-                            isOfficer ? 'Bekleyen' : 'Toplam',
-                            isOfficer ? '${stats.pendingCount ?? 0}' : '${stats.totalReports}',
-                            isOfficer ? Icons.pending_actions : Icons.assignment,
-                          ),
-                          const Gap(12),
-                          _buildStatCard(
-                            isOfficer ? 'Acil' : 'Puan',
-                            isOfficer ? '${stats.urgentCount ?? 0}' : '${stats.reputationScore ?? 0}',
-                            isOfficer ? Icons.warning_amber : Icons.star,
-                          ),
-                          const Gap(12),
-                          _buildStatCard(
-                            isOfficer ? 'Toplam' : 'Onaylı',
-                            isOfficer ? '${stats.totalReports}' : '${stats.verifiedCount}',
-                            isOfficer ? Icons.summarize : Icons.check_circle,
-                          ),
-                        ],
+                      data: (stats) => FadeInDown(
+                        duration: const Duration(milliseconds: 600),
+                        child: Row(
+                          children: [
+                            _buildStatCard(
+                              isOfficer ? 'Bekleyen' : 'Toplam',
+                              isOfficer ? '${stats.pendingCount ?? 0}' : '${stats.totalReports}',
+                              isOfficer ? Icons.pending_actions : Icons.assignment,
+                            ),
+                            const Gap(12),
+                            _buildStatCard(
+                              isOfficer ? 'Acil' : 'Puan',
+                              isOfficer ? '${stats.urgentCount ?? 0}' : '${stats.reputationScore ?? 0}',
+                              isOfficer ? Icons.warning_amber : Icons.star,
+                            ),
+                            const Gap(12),
+                            _buildStatCard(
+                              isOfficer ? 'Toplam' : 'Onaylı',
+                              isOfficer ? '${stats.totalReports}' : '${stats.verifiedCount}',
+                              isOfficer ? Icons.summarize : Icons.check_circle,
+                            ),
+                          ],
+                        ),
                       ),
                       loading: () => const Center(child: CircularProgressIndicator(color: Colors.white)),
                       error: (_, _) => Row(
@@ -151,7 +155,11 @@ class HomeScreen extends ConsumerWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   sliver: SliverList(
                     delegate: SliverChildBuilderDelegate(
-                      (context, index) => _buildReportCard(context, reports[index]),
+                      (context, index) => FadeInUp(
+                        delay: Duration(milliseconds: 100 * index.clamp(0, 10)),
+                        duration: const Duration(milliseconds: 400),
+                        child: _buildReportCard(context, reports[index]),
+                      ),
                       childCount: reports.length,
                     ),
                   ),

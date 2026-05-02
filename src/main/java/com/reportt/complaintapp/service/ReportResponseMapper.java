@@ -30,8 +30,8 @@ public class ReportResponseMapper {
                 report.isLiveCaptureConfirmed(),
                 citizenName,
                 report.getCitizen().getReputationScore(),
-                report.getAssignedStation().getStationName(),
-                report.getAssignedStation().getDistrict(),
+                report.getAssignedStation() != null ? report.getAssignedStation().getStationName() : null,
+                report.getAssignedStation() != null ? report.getAssignedStation().getDistrict() : null,
                 report.getCreatedAt(),
                 evidences.stream()
                         .map(evidence -> new EvidenceResponse(

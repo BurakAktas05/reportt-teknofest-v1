@@ -5,7 +5,6 @@ import com.reportt.complaintapp.exception.ApiErrorResponseFactory;
 import com.reportt.complaintapp.exception.ErrorCode;
 import io.github.bucket4j.Bandwidth;
 import io.github.bucket4j.Bucket;
-import io.github.bucket4j.Refill;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -64,7 +63,10 @@ public class RateLimitingFilter extends OncePerRequestFilter {
     }
 
     private Bucket newBucket(long capacity, long refillTokens, long refillMinutes) {
-        Bandwidth limit = Bandwidth.classic(capacity, Refill.greedy(refillTokens, Duration.ofMinutes(refillMinutes)));
+        Bandwidth limit = Bandwidth.builder()
+                .capacity(capacity)
+                .refillGreedy(refillTokens, Duration.ofMinutes(refillMinutes))
+                .build();
         return Bucket.builder().addLimit(limit).build();
     }
 }
